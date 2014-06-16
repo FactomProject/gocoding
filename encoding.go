@@ -98,14 +98,14 @@ func Marshal(value interface{}) ([]byte, error) {
 	
 	if _, ok := value.(Marshaller); !ok { return json.Marshal(value) }
 	
-	strMap := make(map[string]string)
+	strMap := make(map[string]*Raw)
 	for _, field := range value.(Marshaller).MarshallableFields() {
 		obj, err := getValue(field)
 		if err != nil { return nil, err }
 		
 		data, err := Marshal(obj)
 		if err != nil { return nil, err }
-		strMap[field.Name] = string(data)
+		strMap[field.Name] = mkraw(data)
 	}
 	
 	return json.Marshal(strMap)
@@ -240,7 +240,7 @@ func Unmarshal(data []byte, value interface{}) error {
 	
 	if rValue.Kind() == reflect.Array || rValue.Kind() == reflect.Slice {
 		eType := rValue.Type().Elem()
-		array := []string{}
+		array := []*Raw{}
 		
 		err := json.Unmarshal(data, array)
 		if err != nil { return err }
@@ -248,7 +248,7 @@ func Unmarshal(data []byte, value interface{}) error {
 		for index, str := range array {
 			eValue := reflect.New(eType)
 			
-			err := Unmarshal([]byte(str), eValue.Interface())
+			err := Unmarshal(*str, eValue.Interface())
 			if err != nil { return err }
 			
 			rValue.Index(index).Set(eValue)
@@ -259,7 +259,7 @@ func Unmarshal(data []byte, value interface{}) error {
 	
 	if _, ok := value.(Unmarshaller); !ok { return json.Unmarshal(data, value) }
 	
-	strMap := make(map[string]string)
+	strMap := make(map[string]*Raw)
 	if err := json.Unmarshal(data, strMap); err != nil { return err }
 	
 loop:
@@ -278,7 +278,7 @@ loop:
 		}
 		
 		obj := reflect.New(field.Type).Interface()
-		data := []byte(strMap[field.Name])
+		data := *strMap[field.Name]
 		if err := Unmarshal(data, obj); err != nil { return err }
 		if err := setField(field, obj); err != nil { return err }
 	}
