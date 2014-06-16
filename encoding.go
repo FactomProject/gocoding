@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	
-	"encoding"
 	"encoding/json"
-	"encoding/xml"
 )
 
 var nv = reflect.ValueOf(nil)
@@ -76,53 +74,41 @@ func getValue(field Field) (interface{}, error) {
 	}
 }
 
-func Marshal(marshalFunc func(interface{}) ([]byte, error), value interface{}) ([]byte, error) {
+func Marshal(value interface{}) ([]byte, error) {
 	rValue := reflect.ValueOf(value)
 	
-	if rValue.Kind() == reflect.Array || rValue.Kind() == reflect.Slice {
+	switch rValue.Kind() {
+	case reflect.Slice, reflect.Array:
 		count := rValue.Len()
-		array := make([]string, count)
+		array := make([]*Raw, count)
 		
 		for i := 0; i < count; i++ {
-			data, err := Marshal(marshalFunc, rValue.Index(i).Interface())
+			data, err := Marshal(rValue.Index(i).Interface())
 			if err != nil { return nil, err }
-			array[i] = string(data)
+			array[i] = mkraw(data)
 		}
 		
-		return marshalFunc(array)
+		return json.Marshal(array)
+		
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Interface:
+		if rValue.IsNil() {
+			return json.Marshal(nil)
+		}
 	}
 	
-	if _, ok := value.(Marshaller); !ok { return marshalFunc(value) }
+	if _, ok := value.(Marshaller); !ok { return json.Marshal(value) }
 	
 	strMap := make(map[string]string)
 	for _, field := range value.(Marshaller).MarshallableFields() {
 		obj, err := getValue(field)
 		if err != nil { return nil, err }
 		
-		data, err := Marshal(marshalFunc, obj)
+		data, err := Marshal(obj)
 		if err != nil { return nil, err }
 		strMap[field.Name] = string(data)
 	}
 	
-	return marshalFunc(strMap)
-}
-
-func MarshalJSON(value interface{}) ([]byte, error) {
-	marshalFunc := json.Marshal
-	
-	if _, ok := value.(json.Marshaler); ok { return marshalFunc(value) }
-	if _, ok := value.(encoding.TextMarshaler); ok { return marshalFunc(value) }
-	
-	return Marshal(marshalFunc, value)
-}
-
-func MarshalXML(value interface{}) ([]byte, error) {
-	marshalFunc := xml.Marshal
-	
-	if _, ok := value.(xml.Marshaler); ok { return marshalFunc(value) }
-	if _, ok := value.(encoding.TextMarshaler); ok { return marshalFunc(value) }
-	
-	return Marshal(marshalFunc, value)
+	return json.Marshal(strMap)
 }
 
 type Unmarshaller interface {
@@ -249,20 +235,20 @@ func getSubclass(field Field) (interface{}, error) {
 									  " but should be of kind Func"))
 }
 
-func Unmarshal(unmarshalFunc func([]byte, interface{}) error, data []byte, value interface{}) error {
+func Unmarshal(data []byte, value interface{}) error {
 	rValue := reflect.ValueOf(value)
 	
 	if rValue.Kind() == reflect.Array || rValue.Kind() == reflect.Slice {
 		eType := rValue.Type().Elem()
 		array := []string{}
 		
-		err := unmarshalFunc(data, array)
+		err := json.Unmarshal(data, array)
 		if err != nil { return err }
 		
 		for index, str := range array {
 			eValue := reflect.New(eType)
 			
-			err := Unmarshal(unmarshalFunc, []byte(str), eValue.Interface())
+			err := Unmarshal([]byte(str), eValue.Interface())
 			if err != nil { return err }
 			
 			rValue.Index(index).Set(eValue)
@@ -271,10 +257,10 @@ func Unmarshal(unmarshalFunc func([]byte, interface{}) error, data []byte, value
 		return nil
 	}
 	
-	if _, ok := value.(Unmarshaller); !ok { return unmarshalFunc(data, value) }
+	if _, ok := value.(Unmarshaller); !ok { return json.Unmarshal(data, value) }
 	
 	strMap := make(map[string]string)
-	if err := unmarshalFunc(data, strMap); err != nil { return err }
+	if err := json.Unmarshal(data, strMap); err != nil { return err }
 	
 loop:
 	for _, field := range value.(Unmarshaller).UnmarshallableFields() {
@@ -293,27 +279,9 @@ loop:
 		
 		obj := reflect.New(field.Type).Interface()
 		data := []byte(strMap[field.Name])
-		if err := Unmarshal(unmarshalFunc, data, obj); err != nil { return err }
+		if err := Unmarshal(data, obj); err != nil { return err }
 		if err := setField(field, obj); err != nil { return err }
 	}
 	
 	return nil
-}
-
-func UnmarshalJSON(data []byte, value interface{}) error {
-	unmarshalFunc := json.Unmarshal
-	
-	if _, ok := value.(json.Unmarshaler); ok { return unmarshalFunc(data, value) }
-	if _, ok := value.(encoding.TextUnmarshaler); ok { return unmarshalFunc(data, value) }
-	
-	return Unmarshal(unmarshalFunc, data, value)
-}
-
-func UnmarshalXML(data []byte, value interface{}) error {
-	unmarshalFunc := xml.Unmarshal
-	
-	if _, ok := value.(xml.Unmarshaler); ok { return unmarshalFunc(data, value) }
-	if _, ok := value.(encoding.TextUnmarshaler); ok { return unmarshalFunc(data, value) }
-	
-	return Unmarshal(unmarshalFunc, data, value)
 }
