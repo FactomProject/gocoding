@@ -79,7 +79,7 @@ func getValue(field Field) (interface{}, error) {
 func Marshal(marshalFunc func(interface{}) ([]byte, error), value interface{}) ([]byte, error) {
 	rValue := reflect.ValueOf(value)
 	
-	if rValue.Kind() == reflect.Array {
+	if rValue.Kind() == reflect.Array || rValue.Kind() == reflect.Slice {
 		count := rValue.Len()
 		array := make([]string, count)
 		
@@ -252,7 +252,7 @@ func getSubclass(field Field) (interface{}, error) {
 func Unmarshal(unmarshalFunc func([]byte, interface{}) error, data []byte, value interface{}) error {
 	rValue := reflect.ValueOf(value)
 	
-	if rValue.Kind() == reflect.Array {
+	if rValue.Kind() == reflect.Array || rValue.Kind() == reflect.Slice {
 		eType := rValue.Type().Elem()
 		array := []string{}
 		
