@@ -5,8 +5,8 @@ import (
 )
 
 type Marshaller struct {
-	Encoding
-	Renderer
+	encoding Encoding
+	renderer Renderer
 	
 	cache map[reflect.Type]Encoder
 }
@@ -30,9 +30,13 @@ func (m *Marshaller) FindEncoder(encoding Encoding, t reflect.Type) (Encoder, er
 	}
 	
 	// cache hit failed, find it in the encoding, cache it
-	encoder, err := encoding(m.Encoding, t)
+	encoder, err := encoding(m.FindEncoder, t)
 	if err != nil { return nil, err }
 	
 	m.cache[t] = encoder
 	return encoder, nil
+}
+
+func (m *Marshaller) CacheEncoder(t reflect.Type, encoder Encoder) {
+	m.cache[t] = encoder
 }

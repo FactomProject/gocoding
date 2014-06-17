@@ -53,21 +53,18 @@ func TextEncoding(encoding Encoding, theType reflect.Type) (Encoder, error) {
 	
 func boolEncoder(scratch [64]byte, renderer Renderer, value reflect.Value) error {
 	if value.Bool() {
-		renderer.WriteString("true")
+		return renderer.WriteString("true")
 	} else {
-		renderer.WriteString("false")
+		return renderer.WriteString("false")
 	}
-	return nil
 }
 	
 func intEncoder(scratch [64]byte, renderer Renderer, value reflect.Value) error {
-	renderer.WriteData(strconv.AppendInt(scratch[:0], value.Int(), 10))
-	return nil
+	return renderer.WriteData(strconv.AppendInt(scratch[:0], value.Int(), 10))
 }
 	
 func uintEncoder(scratch [64]byte, renderer Renderer, value reflect.Value) error {
-	renderer.WriteData(strconv.AppendUint(scratch[:0], value.Uint(), 10))
-	return nil
+	return renderer.WriteData(strconv.AppendUint(scratch[:0], value.Uint(), 10))
 }
 
 type floatEncoder int
@@ -77,8 +74,7 @@ func (bits floatEncoder) encode(scratch [64]byte, renderer Renderer, value refle
 	if math.IsInf(f, 0) || math.IsNaN(f) {
 		return errors.New(fmt.Sprint("Unsupported float value: ", strconv.FormatFloat(f, 'g', -1, int(bits))))
 	}
-	renderer.WriteData(strconv.AppendFloat(scratch[:0], f, 'g', -1, int(bits)))
-	return nil
+	return renderer.WriteData(strconv.AppendFloat(scratch[:0], f, 'g', -1, int(bits)))
 }
 
 var (
@@ -87,14 +83,12 @@ var (
 )
 
 func stringEncoder(scratch [64]byte, renderer Renderer, value reflect.Value) error {
-	renderer.WriteString(value.String())
-	return nil
+	return renderer.WriteString(value.String())
 }
 
 func interfaceEncoder(scratch [64]byte, renderer Renderer, value reflect.Value) error {
 	if value.IsNil() {
-		renderer.WriteNil()
-		return nil
+		return renderer.WriteNil()
 	}
 	panic(errors.New("figure out what to do here"))
 }
@@ -109,9 +103,9 @@ func newStructEncoder(encoding Encoding, theType reflect.Type) (Encoder, error) 
 			encoder, err := encoding(encoding, field.Type)
 			if err != nil { return err }
 			
-			renderer.StartElement(field.Name)
-			encoder(scratch, renderer, value.FieldByName(field.Name))
-			renderer.StopElement(field.Name)
+			if err := renderer.StartElement(field.Name); err != nil { return err }
+			if err := encoder(scratch, renderer, value.FieldByName(field.Name)); err != nil { return err }
+			if err := renderer.StopElement(field.Name); err != nil { return err }
 		}
 		
 		return nil
@@ -128,19 +122,84 @@ func newMapEncoder(encoding Encoding, theType reflect.Type) (Encoder, error) {
 	
 	return func(scratch [64]byte, renderer Renderer, value reflect.Value) error {
 		if value.IsNil() {
-			renderer.WriteNil()
-			return nil
+			return renderer.WriteNil()
 		}
 		
-		renderer.StartMap()
+		if err := renderer.StartMap(); err != nil { return err }
 		
 		for _, key := range value.MapKeys() {
-			renderer.StartElement(key.String())
-			encoder(scratch, renderer, value.MapIndex(key))
-			renderer.StopElement(key.String())
+			if err := renderer.StartElement(key.String()); err != nil { return err }
+			if err := encoder(scratch, renderer, value.MapIndex(key)) ; err != nil { return err }
+			if err := renderer.StopElement(key.String()); err != nil { return err }
 		}
 		
-		renderer.StopMap()
+		return renderer.StopMap()
+	}, nil
+}
+
+func newSliceEncoder(encoding Encoding, theType reflect.Type) (Encoder, error) {
+	encoder, err := newArrayEncoder(encoding, theType)
+	if err != nil { return nil, err }
+	
+	return func(scratch [64]byte, renderer Renderer, value reflect.Value) error {
+		if value.IsNil() {
+			return renderer.WriteNil()
+		}
+		encoder(scratch, renderer, value)
 		return nil
 	}, nil
 }
+
+func newArrayEncoder(encoding Encoding, theType reflect.Type) (Encoder, error) {
+	eType := theType.Elem()
+	if eType.Kind() == reflect.Uint8 {
+		// some shit
+	}
+	
+	encoder, err := encoding(encoding, eType)
+	if err != nil { return nil, err }
+	
+	return func(scratch [64]byte, renderer Renderer, value reflect.Value) error {
+		count := value.Len()
+		
+		if err := renderer.StartArray(); err != nil { return err }
+		
+		for i := 0; i < count; i++ {
+			id := strconv.Itoa(i)
+			if err := renderer.StartElement(id); err != nil { return err }
+			if err := encoder(scratch, renderer, value.Index(i)); err != nil { return err }
+			if err := renderer.StopElement(id); err != nil { return err }
+		}
+		
+		return renderer.StopArray()
+	}, nil
+}
+
+func newPtrEncoder(encoding Encoding, theType reflect.Type) (Encoder, error) {
+	encoder, err := encoding(encoding, theType.Elem())
+	if err != nil { return nil, err }
+	
+	return func(scratch [64]byte, renderer Renderer, value reflect.Value) error {
+		if value.IsNil() {
+			return renderer.WriteNil()
+		}
+		
+		return encoder(scratch, renderer, value.Elem())
+	}, nil
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

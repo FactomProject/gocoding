@@ -11,13 +11,15 @@ type Encoding func(Encoding, reflect.Type) (Encoder, error)
 type Renderer interface {
 	StartElement(id string) error
 	StartMap() error
+	StartArray() error
 	
 	WriteData(data []byte) error
 	WriteString(str string) error
-	WriteNil()
+	WriteNil() error
 	
 	StopElement(id string) error
 	StopMap() error
+	StopArray() error
 }
 
 type Scanner interface {
