@@ -94,6 +94,8 @@ func Marshal(value interface{}) ([]byte, error) {
 		if rValue.IsNil() {
 			return json.Marshal(nil)
 		}
+		
+	case reflect.Struct:
 	}
 	
 	if _, ok := value.(Marshaller); !ok { return json.Marshal(value) }
@@ -237,6 +239,7 @@ func getSubclass(field Field) (interface{}, error) {
 
 func Unmarshal(data []byte, value interface{}) error {
 	rValue := reflect.ValueOf(value)
+	fmt.Println("unmarshalling ", rValue.Type())
 	
 	if rValue.Kind() == reflect.Array || rValue.Kind() == reflect.Slice {
 		eType := rValue.Type().Elem()
@@ -257,13 +260,25 @@ func Unmarshal(data []byte, value interface{}) error {
 		return nil
 	}
 	
-	if _, ok := value.(Unmarshaller); !ok { return json.Unmarshal(data, value) }
+	switch rValue.Kind() {
+	case reflect.Array, reflect.Slice:
+		
+	case reflect.Interface, reflect.Ptr, reflect.Struct:
+		if _, ok := value.(Unmarshaller); !ok { return json.Unmarshal(data, value) }
+		
+	default:
+		return json.Unmarshal(data, value)
+	}
 	
 	strMap := make(map[string]*Raw)
-	if err := json.Unmarshal(data, strMap); err != nil { return err }
+	if err := json.Unmarshal(data, &strMap); err != nil { return err }
+	
+	fmt.Println(strMap)
 	
 loop:
 	for _, field := range value.(Unmarshaller).UnmarshallableFields() {
+		fmt.Println("field: ", field.Name)
+		
 		if field.Name == "" {
 			subclass, err := getSubclass(field)
 			if err != nil { return err }
@@ -277,10 +292,10 @@ loop:
 			goto loop
 		}
 		
-		obj := reflect.New(field.Type).Interface()
-		data := *strMap[field.Name]
-		if err := Unmarshal(data, obj); err != nil { return err }
-		if err := setField(field, obj); err != nil { return err }
+		obj := reflect.New(field.Type).Elem()
+		data := strMap[field.Name]
+		if err := Unmarshal(*data, obj.Interface()); err != nil { return err }
+		if err := setField(field, obj.Interface()); err != nil { return err }
 	}
 	
 	return nil
