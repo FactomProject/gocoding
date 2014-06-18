@@ -1,42 +1,101 @@
 package gocoding
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
+	"sync"
 )
 
-type Marshaller struct {
+func NewMarshaller(encoding Encoding, renderer Renderer) Marshaller {
+	return &marshaller{encoding: encoding, renderer: renderer, cache: make(map[reflect.Type]Encoder)}
+}
+
+type marshaller struct {
 	encoding Encoding
 	renderer Renderer
 	
+	sync.RWMutex
 	cache map[reflect.Type]Encoder
 }
 
-func Marshal(encoding Encoding, renderer Renderer, obj interface{}) error {
-	marshaller := &Marshaller{encoding, renderer, make(map[reflect.Type]Encoder)}
-	
+func (m *marshaller) Marshal(obj interface{}) error {
 	scratch := [64]byte{}
 	value := reflect.ValueOf(obj)
 	
-	encoder, err := marshaller.FindEncoder(encoding, value.Type())
+	if !value.IsValid() {
+		return errors.New("Invalid value")
+	}
+	
+	encoder, err := m.FindEncoder(value.Type())
 	if err != nil { return err }
 	
-	return encoder(scratch, renderer, value)
+	return encoder(scratch, m.renderer, value)
 }
 
-func (m *Marshaller) FindEncoder(encoding Encoding, t reflect.Type) (Encoder, error) {
+func (m *marshaller) FindEncoder(theType reflect.Type) (encoder Encoder, err error) {
 	// check the cache
-	if encoder, ok := m.cache[t]; ok {
+	m.RLock()
+	encoder = m.cache[theType]
+	m.RUnlock()
+	if encoder != nil {
 		return encoder, nil
 	}
 	
-	// cache hit failed, find it in the encoding, cache it
-	encoder, err := encoding(m.FindEncoder, t)
-	if err != nil { return nil, err }
+	switch theType.Kind() {
+	case reflect.Array, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice, reflect.Struct:
+		encoder, err = m.recurseSafeFindAndCacheEncoder(theType)
+		
+	case reflect.Bool, reflect.String,
+		 reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		 reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		 /*reflect.Complex64, reflect.Complex128,*/
+		 reflect.Float32, reflect.Float64:
+		// simple types don't need locking
+		encoder, err = m.encoding(m, theType)
+		
+	default:
+		return nil, errors.New(fmt.Sprint("Unsupported type: ", theType))
+	}
 	
-	m.cache[t] = encoder
-	return encoder, nil
+	if err != nil {
+		encoder = nil
+	}
+	m.CacheEncoder(theType, encoder)
+	
+	return
 }
 
-func (m *Marshaller) CacheEncoder(t reflect.Type, encoder Encoder) {
-	m.cache[t] = encoder
+func (m *marshaller) recurseSafeFindAndCacheEncoder(theType reflect.Type) (encoder Encoder, err error) {
+	// to deal with recursive types, create a indirect encoder
+	var wg sync.WaitGroup
+	wg.Add(1)
+	indirect := func(scratch [64]byte, renderer Renderer, value reflect.Value) error {
+		wg.Wait()
+		return encoder(scratch, renderer, value)
+	}
+	
+	// safely add the indirect encoder
+	m.CacheEncoder(theType, indirect)
+	
+	// find the encoder
+	encoder, err = m.encoding(m, theType)
+	
+	// replace the encoder with one that returns an error so the indirect encoder doesn't explode
+	if err != nil {
+		encoder = func(scratch [64]byte, renderer Renderer, value reflect.Value) error {
+			return errors.New("Creating the encoder failed")
+		}
+	}
+	
+	// unblock the indirect encoder
+	wg.Done()
+	
+	return
+}
+
+func (m *marshaller) CacheEncoder(theType reflect.Type, encoder Encoder) {
+	m.Lock()
+	m.cache[theType] = encoder
+	m.Unlock()
 }
