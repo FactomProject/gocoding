@@ -5,10 +5,12 @@ import (
 	"reflect"
 	"strconv"
 	
+	"encoding"
 	"encoding/base64"
 )
 
 var encodableType = reflect.TypeOf(new(Encodable)).Elem()
+var textMarshallerType = reflect.TypeOf(new(encoding.TextMarshaler)).Elem()
 
 func TextEncoding(marshaller Marshaller, theType reflect.Type) Encoder {
 	if theType.ConvertibleTo(encodableType) {
@@ -67,6 +69,13 @@ func EncodableTextEncoding(marshaller Marshaller, theType reflect.Type) Encoder 
 			encoding(scratch, renderer, value)
 		}
 	}
+}
+
+func textMarshallerEncoder(scratch [64]byte, renderer Renderer, value reflect.Value) {
+	tmvalue := value.Interface().(encoding.TextMarshaler)
+	text, err := tmvalue.MarshalText()
+	if err != nil { renderer.Error(ErrorPrint("Text Marshal", err)) }
+	renderer.Write(text)
 }
 
 func boolTextEncoder(scratch [64]byte, renderer Renderer, value reflect.Value) {
@@ -140,7 +149,7 @@ func StructTextEncoding(marshaller Marshaller, theType reflect.Type) Encoder {
 				}
 				
 				// add anonymous fields & skip
-				if sf.Anonymous {
+				if sf.Anonymous && sf.Type.Kind() == reflect.Struct {
 					next = append(next, sf.Type)
 					continue
 				}
