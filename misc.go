@@ -2,19 +2,18 @@ package gocoding
 
 import (
 	"fmt"
-	"io"
 )
 
-type FWriter struct {
-	io.Writer
+func ErrorPrint(class string, args...interface{}) *Error {
+	return &Error{class, fmt.Sprint(args...)}
 }
 
-func (w *FWriter) Print(args...interface{}) (int, error) {
-	return fmt.Fprint(w, args...)
+func ErrorPrintf(class, format string, args...interface{}) *Error {
+	return &Error{class, fmt.Sprintf(format, args...)}
 }
 
-func (w *FWriter) Printf(format string, args...interface{}) (int, error) {
-	return fmt.Fprintf(w, format, args...)
+func (e *Error) Error() string {
+	return fmt.Sprint(e.Class, ": ", e.Value)
 }
 
 /*type kindFailure struct {
