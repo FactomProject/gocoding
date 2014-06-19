@@ -19,6 +19,10 @@ type marshaller struct {
 	scratch [64]byte
 }
 
+func (m *marshaller) SetRenderer(renderer Renderer) {
+	m.renderer = renderer
+}
+
 func (m *marshaller) Marshal(obj interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {

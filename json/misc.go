@@ -15,6 +15,10 @@ func NewMarshaller(writer io.Writer) gocoding.Marshaller {
 	return gocoding.NewMarshaller(JSONEncoding, RenderJSON(writer))
 }
 
+func NewIndentedMarshaller(writer io.Writer, prefix, indent string) gocoding.Marshaller {
+	return gocoding.NewMarshaller(JSONEncoding, RenderIndentedJSON(writer, prefix, indent))
+}
+
 func JSONEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Encoder {
 	if theType.ConvertibleTo(jsonMarshallerType) {
 		return jsonMarshallerEncoder

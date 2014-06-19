@@ -6,6 +6,7 @@ import (
 )
 
 type Marshaller interface {
+	SetRenderer(renderer Renderer)
 	Marshal(interface{}) error
 	MarshalObject(obj interface{})
 	MarshalValue(value reflect.Value)
@@ -17,8 +18,12 @@ type Encoder func([64]byte, Renderer, reflect.Value)
 
 type Encoding func(Marshaller, reflect.Type) Encoder
 
-type Encodable interface {
+type Encodable1 interface {
 	Encoding(Marshaller, reflect.Type) Encoder
+}
+
+type Encodable2 interface {
+	EncodableFields() map[string]reflect.Value
 }
 
 type Renderer interface {

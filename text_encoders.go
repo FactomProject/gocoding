@@ -9,12 +9,17 @@ import (
 	"encoding/base64"
 )
 
-var encodableType = reflect.TypeOf(new(Encodable)).Elem()
+var encodableType1 = reflect.TypeOf(new(Encodable1)).Elem()
+var encodableType2 = reflect.TypeOf(new(Encodable2)).Elem()
 var textMarshallerType = reflect.TypeOf(new(encoding.TextMarshaler)).Elem()
 
 func TextEncoding(marshaller Marshaller, theType reflect.Type) Encoder {
-	if theType.ConvertibleTo(encodableType) {
-		return EncodableTextEncoding(marshaller, theType)
+	if theType.ConvertibleTo(encodableType1) {
+		return Encodable1TextEncoding(marshaller, theType)
+	}
+	
+	if theType.ConvertibleTo(encodableType2) {
+		return Encodable2TextEncoding(marshaller, theType)
 	}
 	
 	switch theType.Kind() {
@@ -59,14 +64,30 @@ func TextEncoding(marshaller Marshaller, theType reflect.Type) Encoder {
 	}
 }
 
-func EncodableTextEncoding(marshaller Marshaller, theType reflect.Type) Encoder {
+func Encodable1TextEncoding(marshaller Marshaller, theType reflect.Type) Encoder {
 	return func(scratch [64]byte, renderer Renderer, value reflect.Value) {
 		if value.IsNil() {
 			renderer.WriteNil()
 		} else {
-			encoding := value.Interface().(Encodable).Encoding(marshaller, theType)
+			encoding := value.Interface().(Encodable1).Encoding(marshaller, theType)
 			if encoding == nil { return }
 			encoding(scratch, renderer, value)
+		}
+	}
+}
+
+func Encodable2TextEncoding(marshaller Marshaller, theType reflect.Type) Encoder {
+	return func(scratch [64]byte, renderer Renderer, value reflect.Value) {
+		if value.IsNil() {
+			renderer.WriteNil()
+		} else {
+			renderer.StartStruct()
+			for name, value := range value.Interface().(Encodable2).EncodableFields() {
+				renderer.StartElement(name)
+				marshaller.MarshalValue(value)
+				renderer.StopElement(name)
+			}
+			renderer.StopStruct()
 		}
 	}
 }

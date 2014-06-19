@@ -13,9 +13,17 @@ func RenderJSON(writer io.Writer) gocoding.Renderer {
 	return &jsonRendererStack{Writer: writer, renderers: make([]gocoding.Renderer, 0, 10)}
 }
 
+func RenderIndentedJSON(writer io.Writer, prefix, tabstr string) gocoding.Renderer {
+	return &jsonRendererStack{Writer: writer, renderers: make([]gocoding.Renderer, 0, 10), indent: true, prefix: []string{prefix}, tabstr: tabstr}
+}
+
 type jsonRendererStack struct {
 	io.Writer
 	renderers []gocoding.Renderer
+	
+	indent bool
+	prefix []string
+	tabstr string
 	
 	handler func(*gocoding.Error)
 	recovery func(interface{})
@@ -64,7 +72,27 @@ func (s *jsonRendererStack) Printf(format string, args...interface{}) int {
 }
 
 func (s *jsonRendererStack) WriteNil() int {
-	return s.Print("null")
+	n, _ := s.Write([]byte("null"))
+	return n
+}
+
+func (s *jsonRendererStack) writeIndent() {
+	s.Write([]byte{byte('\n')})
+	for _, str := range s.prefix {
+		s.Write([]byte(str))
+	}
+}
+
+func (s *jsonRendererStack) pushIndent() {
+	if !s.indent { return }
+	
+	s.prefix = append(s.prefix, s.tabstr)
+}
+
+func (s *jsonRendererStack) popIndent() {
+	if !s.indent { return }
+	
+	s.prefix = s.prefix[:len(s.prefix)-1]
 }
 
 func (s *jsonRendererStack) Error(err *gocoding.Error) {
@@ -187,6 +215,7 @@ type jsonMapRenderer jsonCollectionRenderer
 
 func (r *jsonMapRenderer) start() int {
 	r.push(r)
+	r.pushIndent()
 	return r.Print(`{`)
 }
 
@@ -197,6 +226,8 @@ func (r *jsonMapRenderer) StartElement(id string) (n int) {
 		r.comma = true
 	}
 	
+	r.writeIndent()
+	
 	n += r.Printf(`"%s":`, id)
 	n += r.newElementRenderer(id).start()
 	
@@ -204,6 +235,8 @@ func (r *jsonMapRenderer) StartElement(id string) (n int) {
 }
 
 func (r *jsonMapRenderer) StopMap() int {
+	r.popIndent()
+	r.writeIndent()
 	n := r.Print(`}`)
 	r.pop()
 	return n
@@ -213,12 +246,14 @@ type jsonArrayRenderer jsonCollectionRenderer
 
 func (r *jsonArrayRenderer) start() int {
 	r.push(r)
+//	r.pushIndent()
 	return r.Print(`[`)
 }
 
 func (r *jsonArrayRenderer) StartElement(id string) (n int) {
 	if r.comma {
 		n = r.Print(`,`)
+		r.writeIndent()
 	} else {
 		r.comma = true
 	}
@@ -229,6 +264,8 @@ func (r *jsonArrayRenderer) StartElement(id string) (n int) {
 }
 
 func (r *jsonArrayRenderer) StopArray() int {
+//	r.popIndent()
+//	r.writeIndent()
 	n := r.Print(`]`)
 	r.pop()
 	return n
