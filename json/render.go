@@ -77,6 +77,8 @@ func (s *jsonRendererStack) WriteNil() int {
 }
 
 func (s *jsonRendererStack) writeIndent() {
+	if !s.indent { return }
+	
 	s.Write([]byte{byte('\n')})
 	for _, str := range s.prefix {
 		s.Write([]byte(str))
