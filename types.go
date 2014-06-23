@@ -58,6 +58,7 @@ type RuneReader interface {
 	Peek() rune
 	Backup() rune
 	Done() bool
+	String() string // optional
 }
 
 type SliceableRuneReader interface {
@@ -71,9 +72,10 @@ const EndOfText rune = '\u0003'
 type ScannerCode uint8
 
 const (
-	ScannerInitialized ScannerCode = iota
+	Scanning ScannerCode = iota
 	
-	Scanning
+	ScannedKeyBegin
+	ScannedKeyEnd
 	
 	ScannedLiteralBegin
 	ScannedLiteralEnd
@@ -87,13 +89,16 @@ const (
 	ScannedArrayBegin
 	ScannedArrayEnd
 	
+	ScannerInitialized
 	ScannedToEnd
+	
 	ScannerError
+	ScannerBadCode
 )
 
 func (sc ScannerCode) ScannedBegin() bool {
 	switch sc {
-	case ScannedLiteralBegin, ScannedStructBegin, ScannedMapBegin, ScannedArrayBegin:
+	case ScannedKeyBegin, ScannedLiteralBegin, ScannedStructBegin, ScannedMapBegin, ScannedArrayBegin:
 		return true
 		
 	default:
@@ -103,12 +108,24 @@ func (sc ScannerCode) ScannedBegin() bool {
 
 func (sc ScannerCode) ScannedEnd() bool {
 	switch sc {
-	case ScannedLiteralEnd, ScannedStructEnd, ScannedMapEnd, ScannedArrayEnd:
+	case ScannedKeyEnd, ScannedLiteralEnd, ScannedStructEnd, ScannedMapEnd, ScannedArrayEnd:
 		return true
 		
 	default:
 		return false
 	}
+}
+
+func (sc ScannerCode) Reflection() ScannerCode {
+	if sc.ScannedBegin() {
+		return ScannerCode(sc + 1)
+	}
+	
+	if sc.ScannedEnd() {
+		return ScannerCode(sc - 1)
+	}
+	
+	return ScannerBadCode
 }
 
 type Scanner interface {
@@ -117,32 +134,3 @@ type Scanner interface {
 	
 	Error(*Error)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

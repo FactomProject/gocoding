@@ -23,13 +23,16 @@ func (r *runeSliceReader) Read() rune {
 		return EndOfText
 	}
 	
-	c := r.Peek()
 	r.cursor++
-	return c
+	return r.Peek()
 }
 
 func (r *runeSliceReader) Peek() rune {
-	return r.runes[r.cursor]
+	if r.cursor == 0 {
+		panic("Cannot peek, nothing has been read")
+	}
+	
+	return r.runes[r.cursor-1]
 }
 
 func (r *runeSliceReader) Backup() rune {
@@ -46,11 +49,19 @@ func (r *runeSliceReader) Done() bool {
 }
 
 func (r *runeSliceReader) Mark() {
-	r.mark = r.cursor
+	if r.cursor == 0 {
+		panic("Cannot mark, nothing has been read")
+	}
+	
+	r.mark = r.cursor - 1
 }
 
 func (r *runeSliceReader) Slice() SliceableRuneReader {
 	return ReadRunesFromRuneSlice(r.runes[r.mark:r.cursor])
+}
+
+func (r *runeSliceReader) String() string {
+	return string(r.runes)
 }
 
 type byteSliceReader struct {
@@ -79,22 +90,22 @@ func (r *byteSliceReader) Read() rune {
 	c, n := utf8.DecodeRune(r.remaining)
 	r.remaining = r.remaining[n:]
 	
-	r.runes[r.cursor] = c
+	r.runes = append(r.runes, c)
 	r.cursor++
 	
 	return r.Peek()
 }
 
 func (r *byteSliceReader) Peek() rune {
-	if len(r.runes) == 0 {
-		panic("Cannot peek, nothing has been read")
-	}
-	
 	return r.runeSliceReader.Peek()
 }
 
 func (r *byteSliceReader) Done() bool {
 	return len(r.remaining) == 0
+}
+
+func (r *byteSliceReader) String() string {
+	return r.runeSliceReader.String() + string(r.remaining)
 }
 
 // circularRuneBuffer is a size-limited rune buffer that becomes circular when
@@ -302,9 +313,8 @@ func (r *readerRuneReader) Read() rune {
 	
 done:
 	// get the rune
-	c = r.Peek()
 	r.cursor++
-	return c
+	return r.Peek()
 }
 
 func (r *readerRuneReader) Peek() rune {
@@ -312,7 +322,7 @@ func (r *readerRuneReader) Peek() rune {
 		panic("Cannot peek, nothing has been read")
 	}
 	
-	return r.cbr.get(r.cursor)
+	return r.cbr.get(r.cursor-1)
 }
 
 func (r *readerRuneReader) Backup() rune {
@@ -333,9 +343,18 @@ func (r *readerRuneReader) Done() bool {
 }
 
 func (r *readerRuneReader) Mark() {
-	r.mark = r.cursor
+	if r.cursor == 0 {
+		panic("Cannot mark, nothing has been read")
+	}
+	
+	r.mark = r.cursor - 1
 }
 
 func (r *readerRuneReader) Slice() SliceableRuneReader {
 	return ReadRunesFromRuneSlice(r.cbr.slice(r.mark, r.cursor))
+}
+
+func (r *readerRuneReader) String() string {
+	panic("readerRuneReader does not support String()")
+	return ""
 }
