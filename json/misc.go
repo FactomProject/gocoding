@@ -11,12 +11,16 @@ import (
 
 var jsonMarshallerType = reflect.TypeOf(new(json.Marshaler)).Elem()
 
-func NewMarshaller(writer io.Writer) gocoding.Marshaller {
-	return gocoding.NewMarshaller(JSONEncoding, RenderJSON(writer))
+func NewMarshaller() gocoding.Marshaller {
+	return gocoding.NewMarshaller(JSONEncoding)
 }
 
-func NewIndentedMarshaller(writer io.Writer, prefix, indent string) gocoding.Marshaller {
-	return gocoding.NewMarshaller(JSONEncoding, RenderIndentedJSON(writer, prefix, indent))
+func Marshal(writer io.Writer, obj interface{}) {
+	NewMarshaller().Marshal(RenderJSON(writer), obj)
+}
+
+func MarshalIndent(writer io.Writer, obj interface{}, prefix, indent string) {
+	NewMarshaller().Marshal(RenderIndentedJSON(writer, prefix, indent), obj)
 }
 
 func JSONEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Encoder {

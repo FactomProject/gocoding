@@ -45,12 +45,12 @@ type Renderer interface {
 }
 
 type Marshaller interface {
-	SetRenderer(renderer Renderer)
-	Marshal(interface{}) error
-	MarshalObject(obj interface{})
-	MarshalValue(value reflect.Value)
+//	SetRenderer(renderer Renderer)
+	Marshal(Renderer, interface{}) error
+	MarshalObject(Renderer, interface{})
+	MarshalValue(Renderer, reflect.Value)
 	FindEncoder(reflect.Type) Encoder
-	CacheEncoder(t reflect.Type, encoder Encoder)
+	CacheEncoder(reflect.Type, Encoder)
 }
 
 type RuneReader interface {

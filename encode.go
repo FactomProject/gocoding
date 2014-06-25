@@ -5,13 +5,12 @@ import (
 	"sync"
 )
 
-func NewMarshaller(encoding Encoding, renderer Renderer) Marshaller {
-	return &marshaller{encoding: encoding, renderer: renderer, cache: make(map[reflect.Type]Encoder)}
+func NewMarshaller(encoding Encoding) Marshaller {
+	return &marshaller{encoding: encoding, cache: make(map[reflect.Type]Encoder)}
 }
 
 type marshaller struct {
 	encoding Encoding
-	renderer Renderer
 	
 	sync.RWMutex
 	cache map[reflect.Type]Encoder
@@ -19,36 +18,32 @@ type marshaller struct {
 	scratch [64]byte
 }
 
-func (m *marshaller) SetRenderer(renderer Renderer) {
-	m.renderer = renderer
-}
-
-func (m *marshaller) Marshal(obj interface{}) (err error) {
+func (m *marshaller) Marshal(renderer Renderer, obj interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = m.renderer.Recover(r)
+			err = renderer.Recover(r)
 		}
 	}()
 	
-	m.MarshalObject(obj)
+	m.MarshalObject(renderer, obj)
 	
 	return
 }
 
-func (m *marshaller) MarshalObject(obj interface{}) {
-	m.MarshalValue(reflect.ValueOf(obj))
+func (m *marshaller) MarshalObject(renderer Renderer, obj interface{}) {
+	m.MarshalValue(renderer, reflect.ValueOf(obj))
 }
 
-func (m *marshaller) MarshalValue(value reflect.Value) {
+func (m *marshaller) MarshalValue(renderer Renderer, value reflect.Value) {
 	if !value.IsValid() {
-		m.renderer.Error(ErrorPrint("Marshalling", "Invalid value"))
+		renderer.Error(ErrorPrint("Marshalling", "Invalid value"))
 		return
 	}
 	
 	encoder := m.FindEncoder(value.Type())
 	if encoder == nil { return }
 	
-	encoder(m.scratch, m.renderer, value)
+	encoder(m.scratch, renderer, value)
 }
 
 func (m *marshaller) FindEncoder(theType reflect.Type) (encoder Encoder) {
@@ -73,7 +68,7 @@ func (m *marshaller) FindEncoder(theType reflect.Type) (encoder Encoder) {
 		encoder = m.encoding(m, theType)
 		
 	default:
-		m.renderer.Error(ErrorPrint("Encoding", "Unsupported type: ", theType))
+		panic(ErrorPrint("Encoding", "Unsupported type: ", theType))
 	}
 	
 	m.CacheEncoder(theType, encoder)
@@ -99,7 +94,7 @@ func (m *marshaller) recurseSafeFindAndCacheEncoder(theType reflect.Type) (encod
 	// replace the encoder with one that returns an error so the indirect encoder doesn't explode
 	if encoder == nil {
 		encoder = func(scratch [64]byte, renderer Renderer, value reflect.Value) {
-			m.renderer.Error(ErrorPrint("Encoding", "Unsupported type: ", theType))
+			panic(ErrorPrint("Encoding", "Unsupported type: ", theType))
 		}
 	}
 	

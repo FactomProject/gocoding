@@ -84,7 +84,7 @@ func Encodable2TextEncoding(marshaller Marshaller, theType reflect.Type) Encoder
 			renderer.StartStruct()
 			for name, value := range value.Interface().(Encodable2).EncodableFields() {
 				renderer.StartElement(name)
-				marshaller.MarshalValue(value)
+				marshaller.MarshalValue(renderer, value)
 				renderer.StopElement(name)
 			}
 			renderer.StopStruct()
@@ -142,7 +142,7 @@ func InterfaceTextEncoding(marshaller Marshaller, theType reflect.Type) Encoder 
 			return
 		}
 		
-		marshaller.MarshalValue(value.Elem())
+		marshaller.MarshalValue(renderer, value.Elem())
 	}
 }
 
