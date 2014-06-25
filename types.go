@@ -73,28 +73,70 @@ type ScannerCode uint8
 
 const (
 	Scanning ScannerCode = iota
-	
 	ScannedKeyBegin
 	ScannedKeyEnd
-	
 	ScannedLiteralBegin
 	ScannedLiteralEnd
-	
 	ScannedStructBegin
 	ScannedStructEnd
-	
 	ScannedMapBegin
 	ScannedMapEnd
-	
 	ScannedArrayBegin
 	ScannedArrayEnd
-	
 	ScannerInitialized
 	ScannedToEnd
-	
 	ScannerError
 	ScannerBadCode
 )
+
+func (sc ScannerCode) String() string {
+	switch sc {
+	case Scanning:
+		return "Scanning"
+		
+	case ScannedKeyBegin:
+		return "ScannedKeyBegin"
+		
+	case ScannedKeyEnd:
+		return "ScannedKeyEnd"
+		
+	case ScannedLiteralBegin:
+		return "ScannedLiteralBegin"
+		
+	case ScannedLiteralEnd:
+		return "ScannedLiteralEnd"
+		
+	case ScannedStructBegin:
+		return "ScannedStructBegin"
+		
+	case ScannedStructEnd:
+		return "ScannedStructEnd"
+		
+	case ScannedMapBegin:
+		return "ScannedMapBegin"
+		
+	case ScannedMapEnd:
+		return "ScannedMapEnd"
+		
+	case ScannedArrayBegin:
+		return "ScannedArrayBegin"
+		
+	case ScannedArrayEnd:
+		return "ScannedArrayEnd"
+		
+	case ScannerInitialized:
+		return "ScannerInitialized"
+		
+	case ScannedToEnd:
+		return "ScannedToEnd"
+		
+	case ScannerError:
+		return "ScannerError"
+		
+	default:
+		return "ScannerBadCode"
+	}
+}
 
 func (sc ScannerCode) ScannedBegin() bool {
 	switch sc {
