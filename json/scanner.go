@@ -179,7 +179,7 @@ func (s *scanner) NextValue() reflect.Value {
 		
 		switch s.mark {
 		case markedString:
-			val, err := strconv.Unquote(str)
+			val, err = strconv.Unquote(str)
 			
 		case markedInt:
 			val, err = strconv.ParseInt(str, 10, 64)

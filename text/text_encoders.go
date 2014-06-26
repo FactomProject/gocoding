@@ -76,7 +76,7 @@ func Encoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Enc
 	if ptrType.ConvertibleTo(encodableType1) ||
 	   ptrType.ConvertibleTo(encodableType2) ||
 	   ptrType.ConvertibleTo(textMarshallerType) {
-		return indirectEncoder(encoder, marshaller.FindEncoder(ptrType))
+		return tryIndirectEncoder(encoder, marshaller.FindEncoder(ptrType))
 	} else {
 		return encoder
 	}

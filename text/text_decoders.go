@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"github.com/firelizzard18/gocoding"
 	"reflect"
-	"strconv"
 	"strings"
 )
 
@@ -262,7 +261,7 @@ func MapDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocod
 		
 		if !value.IsValid() || value.IsNil() {
 			if !value.CanSet() { errorDecoding(gocoding.ErrorPrint("Decoding", "Invalid or nil and unsettable value")); return }
-			value.Set(reflect.Zero(value.Type()))
+			value.Set(reflect.Zero(theType))
 		}
 		
 		for {
@@ -304,11 +303,7 @@ func SliceDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) goc
 	if decoder == nil { return nil }
 	
 	return func(scratch [64]byte, scanner gocoding.Scanner, value reflect.Value) {
-		if value.IsNil() {
-			scanner.WriteNil()
-		} else {
-			decoder(scratch, scanner, value)
-		}
+		decoder(scratch, scanner,  value)
 	}
 }
 
@@ -318,25 +313,44 @@ func byteSliceDecoder(scratch [64]byte, scanner gocoding.Scanner, value reflect.
 		errorDecoding(gocoding.ErrorPrint("Decoding", "Decoding byte slice: expected String, got %s", bytes.Type().String()))
 	}
 	
+	data, err := base64.StdEncoding.DecodeString(bytes.String())
+	errorCheck(scanner, err)
+	
+	value.Set(reflect.ValueOf(data))
 }
 
 func ArrayDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocoding.Decoder {
-	decoder := unmarshaller.FindDecoder(theType.Elem())
+	elemType := theType.Elem()
+	decoder := unmarshaller.FindDecoder(theType)
 	if decoder == nil { return nil }
 	
 	return func(scratch [64]byte, scanner gocoding.Scanner, value reflect.Value) {
-		count := value.Len()
+		if !continueToCode(scanner, gocoding.ScannedArrayBegin) { return }
 		
-		scanner.StartArray()
-		
-		for i := 0; i < count; i++ {
-			id := strconv.Itoa(i)
-			scanner.StartElement(id)
-			decoder(scratch, scanner, value.Index(i))
-			scanner.StopElement(id)
+		if !value.IsValid() || value.IsNil() {
+			if !value.CanSet() { errorDecoding(gocoding.ErrorPrint("Decoding", "Invalid or nil and unsettable value")); return }
+			value.Set(reflect.Zero(theType))
 		}
 		
-		scanner.StopArray()
+		for i := 0; true; i++ {
+			// get the next code, check for the end
+			code := scanner.Continue()
+			if code.Matches(gocoding.ScannedArrayEnd) { break }
+			
+			var arrElem reflect.Value
+			if i < value.Len() {
+				arrElem = value.Index(i)
+			}
+			
+			if !arrElem.IsValid() || arrElem.IsNil() {
+				if !arrElem.CanSet() { errorDecoding(gocoding.ErrorPrint("Decoding", "Invalid or nil and unsettable value")); return }
+				arrElem.Set(reflect.Zero(elemType))
+			}
+			
+			decoder(scratch, scanner, arrElem)
+			
+			panic("not fully implemented")
+		}
 	}
 }
 
@@ -346,7 +360,7 @@ func PtrDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocod
 	
 	return func(scratch [64]byte, scanner gocoding.Scanner, value reflect.Value) {
 		if value.IsNil() {
-			scanner.WriteNil()
+			panic("not fully implemented")
 		} else {
 			decoder(scratch, scanner, value.Elem())
 		}
