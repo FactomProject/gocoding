@@ -1,12 +1,11 @@
 package json
 
 import (
+	"encoding/json"
+	"github.com/firelizzard18/gocoding"
+	"github.com/firelizzard18/gocoding/text"
 	"io"
 	"reflect"
-	
-	"encoding/json"
-	
-	"github.com/firelizzard18/gocoding"
 )
 
 var jsonMarshallerType = reflect.TypeOf(new(json.Marshaler)).Elem()
@@ -28,7 +27,7 @@ func JSONEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding
 		return jsonMarshallerEncoder
 	}
 	
-	return gocoding.TextEncoding(marshaller, theType)
+	return text.Encoding(marshaller, theType)
 }
 
 func jsonMarshallerEncoder(scratch [64]byte, renderer gocoding.Renderer, value reflect.Value) {

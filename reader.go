@@ -18,7 +18,7 @@ func ReadRunesFromRuneSlice(slice []rune) SliceableRuneReader {
 	return &runeSliceReader{runes: slice}
 }
 
-func (r *runeSliceReader) Read() rune {
+func (r *runeSliceReader) Next() rune {
 	if r.Done() {
 		return EndOfText
 	}
@@ -78,13 +78,13 @@ func ReadRunesFromByteSlice(slice []byte) SliceableRuneReader {
 	}
 }
 
-func (r *byteSliceReader) Read() rune {
+func (r *byteSliceReader) Next() rune {
 	if r.Done() {
 		return EndOfText
 	}
 	
 	if !r.runeSliceReader.Done() {
-		return r.runeSliceReader.Read()
+		return r.runeSliceReader.Next()
 	}
 	
 	c, n := utf8.DecodeRune(r.remaining)
@@ -245,7 +245,7 @@ func ReadRunesFromReader(source io.Reader, maxcap int) SliceableRuneReader {
 	}
 }
 
-func (r *readerRuneReader) Read() rune {
+func (r *readerRuneReader) Next() rune {
 	if r.Done() {
 		return EndOfText
 	}

@@ -104,6 +104,11 @@ func (m *marshaller) recurseSafeFindAndCacheEncoder(theType reflect.Type) (encod
 	return
 }
 
+func (m *marshaller) IsCached(theType reflect.Type) bool {
+	_, ok := m.cache[theType]
+	return ok
+}
+
 func (m *marshaller) CacheEncoder(theType reflect.Type, encoder Encoder) {
 	m.Lock()
 	m.cache[theType] = encoder

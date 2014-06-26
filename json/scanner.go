@@ -179,7 +179,7 @@ func (s *scanner) NextValue() reflect.Value {
 		
 		switch s.mark {
 		case markedString:
-			return reflect.ValueOf(str[1:len(str)-1])
+			val, err := strconv.Unquote(str)
 			
 		case markedInt:
 			val, err = strconv.ParseInt(str, 10, 64)
@@ -251,7 +251,7 @@ func (s *scanner) Error(err *gocoding.Error) {
 
 // initial state
 func stateExpectingObjectOrArray(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -277,7 +277,7 @@ func stateDone(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode
 }
 
 func stateExpectingValue(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -334,7 +334,7 @@ func stateExpectingValue(s *scanner, r gocoding.SliceableRuneReader) (gocoding.S
 }
 
 func stateInObjectExpectingKey(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -354,7 +354,7 @@ func stateInObjectExpectingKey(s *scanner, r gocoding.SliceableRuneReader) (goco
 }
 
 func stateInObjectExpectingColon(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -373,7 +373,7 @@ func stateInObjectExpectingColon(s *scanner, r gocoding.SliceableRuneReader) (go
 }
 
 func stateInObjectOrArrayExpectingComma(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -398,7 +398,7 @@ func stateInObjectOrArrayExpectingComma(s *scanner, r gocoding.SliceableRuneRead
 }
 
 func stateInString(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -417,7 +417,7 @@ func stateInString(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Scanner
 }
 
 func stateInStringEscaped(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -438,7 +438,7 @@ func stateInStringEscaped(s *scanner, r gocoding.SliceableRuneReader) (gocoding.
 type unicodeHexDigitNum uint8
 
 func (u unicodeHexDigitNum) stateInStringUnicode(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -459,7 +459,7 @@ func (u unicodeHexDigitNum) stateInStringUnicode(s *scanner, r gocoding.Sliceabl
 }
 
 func stateInNumberNeg(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -478,7 +478,7 @@ func stateInNumberNeg(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Scan
 }
 
 func stateInNumber0(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -500,7 +500,7 @@ func stateInNumber0(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Scanne
 }
 
 func stateInNumberDigit(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -525,7 +525,7 @@ func stateInNumberDigit(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Sc
 }
 
 func stateInNumberDot(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -541,7 +541,7 @@ func stateInNumberDot(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Scan
 }
 
 func stateInNumberPostDot(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -558,7 +558,7 @@ func stateInNumberPostDot(s *scanner, r gocoding.SliceableRuneReader) (gocoding.
 }
 
 func stateInNumberExponent(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -577,7 +577,7 @@ func stateInNumberExponent(s *scanner, r gocoding.SliceableRuneReader) (gocoding
 }
 
 func stateInNumberSignedExponent(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -593,7 +593,7 @@ func stateInNumberSignedExponent(s *scanner, r gocoding.SliceableRuneReader) (go
 }
 
 func stateInNumberExponentDigit(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
-	c := r.Read()
+	c := r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -610,7 +610,7 @@ func stateInNumberExponentDigit(s *scanner, r gocoding.SliceableRuneReader) (goc
 }
 
 func stateInTrue(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.ScannerCode, state scanState) {
-	p, c := r.Peek(), r.Read()
+	p, c := r.Peek(), r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -640,7 +640,7 @@ func stateInTrue(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.Scan
 }
 
 func stateInFalse(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.ScannerCode, state scanState) {
-	p, c := r.Peek(), r.Read()
+	p, c := r.Peek(), r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone
@@ -675,7 +675,7 @@ func stateInFalse(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.Sca
 }
 
 func stateInNull(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.ScannerCode, state scanState) {
-	p, c := r.Peek(), r.Read()
+	p, c := r.Peek(), r.Next()
 	
 	if c == gocoding.EndOfText {
 		return gocoding.ScannedToEnd, stateDone

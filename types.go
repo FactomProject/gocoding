@@ -10,8 +10,16 @@ type Error struct {
 	Value interface{}
 }
 
-type Encoder func([64]byte, Renderer, reflect.Value)
+type Marshaller interface {
+	Marshal(Renderer, interface{}) error
+	MarshalObject(Renderer, interface{})
+	MarshalValue(Renderer, reflect.Value)
+	FindEncoder(reflect.Type) Encoder
+	IsCached(reflect.Type) bool
+	CacheEncoder(reflect.Type, Encoder)
+}
 
+type Encoder func([64]byte, Renderer, reflect.Value)
 type Encoding func(Marshaller, reflect.Type) Encoder
 
 type Encodable1 interface {
@@ -44,17 +52,29 @@ type Renderer interface {
 	Recover(interface{}) error
 }
 
-type Marshaller interface {
-//	SetRenderer(renderer Renderer)
-	Marshal(Renderer, interface{}) error
-	MarshalObject(Renderer, interface{})
-	MarshalValue(Renderer, reflect.Value)
-	FindEncoder(reflect.Type) Encoder
-	CacheEncoder(reflect.Type, Encoder)
+type Unmarshaller interface {
+	Unmarshal(Scanner, interface{}) error
+	UnmarshalObject(Scanner, interface{})
+	UnmarshalValue(Scanner, reflect.Value)
+	FindDecoder(reflect.Type) Decoder
+	CacheDecoder(reflect.Type, Decoder)
 }
 
+type Decoder func([64]byte, Scanner, reflect.Value)
+type Decoding func(Unmarshaller, reflect.Type) Decoder
+
+type Scanner interface {
+	NextCode() ScannerCode
+	NextValue() reflect.Value
+	Continue() ScannerCode
+	
+	Error(*Error)
+}
+
+type ScannerCode uint8
+
 type RuneReader interface {
-	Read() rune
+	Next() rune
 	Peek() rune
 	Backup() rune
 	Done() bool
@@ -65,114 +85,4 @@ type SliceableRuneReader interface {
 	RuneReader
 	Mark()
 	Slice() SliceableRuneReader
-}
-
-const EndOfText rune = '\u0003'
-
-type ScannerCode uint8
-
-const (
-	Scanning ScannerCode = iota
-	ScannedKeyBegin
-	ScannedKeyEnd
-	ScannedLiteralBegin
-	ScannedLiteralEnd
-	ScannedStructBegin
-	ScannedStructEnd
-	ScannedMapBegin
-	ScannedMapEnd
-	ScannedArrayBegin
-	ScannedArrayEnd
-	ScannerInitialized
-	ScannedToEnd
-	ScannerError
-	ScannerBadCode
-)
-
-func (sc ScannerCode) String() string {
-	switch sc {
-	case Scanning:
-		return "Scanning"
-		
-	case ScannedKeyBegin:
-		return "ScannedKeyBegin"
-		
-	case ScannedKeyEnd:
-		return "ScannedKeyEnd"
-		
-	case ScannedLiteralBegin:
-		return "ScannedLiteralBegin"
-		
-	case ScannedLiteralEnd:
-		return "ScannedLiteralEnd"
-		
-	case ScannedStructBegin:
-		return "ScannedStructBegin"
-		
-	case ScannedStructEnd:
-		return "ScannedStructEnd"
-		
-	case ScannedMapBegin:
-		return "ScannedMapBegin"
-		
-	case ScannedMapEnd:
-		return "ScannedMapEnd"
-		
-	case ScannedArrayBegin:
-		return "ScannedArrayBegin"
-		
-	case ScannedArrayEnd:
-		return "ScannedArrayEnd"
-		
-	case ScannerInitialized:
-		return "ScannerInitialized"
-		
-	case ScannedToEnd:
-		return "ScannedToEnd"
-		
-	case ScannerError:
-		return "ScannerError"
-		
-	default:
-		return "ScannerBadCode"
-	}
-}
-
-func (sc ScannerCode) ScannedBegin() bool {
-	switch sc {
-	case ScannedKeyBegin, ScannedLiteralBegin, ScannedStructBegin, ScannedMapBegin, ScannedArrayBegin:
-		return true
-		
-	default:
-		return false
-	}
-}
-
-func (sc ScannerCode) ScannedEnd() bool {
-	switch sc {
-	case ScannedKeyEnd, ScannedLiteralEnd, ScannedStructEnd, ScannedMapEnd, ScannedArrayEnd:
-		return true
-		
-	default:
-		return false
-	}
-}
-
-func (sc ScannerCode) Reflection() ScannerCode {
-	if sc.ScannedBegin() {
-		return ScannerCode(sc + 1)
-	}
-	
-	if sc.ScannedEnd() {
-		return ScannerCode(sc - 1)
-	}
-	
-	return ScannerBadCode
-}
-
-type Scanner interface {
-	NextCode() ScannerCode
-	NextValue() reflect.Value
-	
-	Error(*Error)
 }
