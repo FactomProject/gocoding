@@ -93,9 +93,9 @@ func Encodable1Encoding(marshaller gocoding.Marshaller, theType reflect.Type) go
 		if value.IsNil() {
 			renderer.WriteNil()
 		} else {
-			encoding := value.Interface().(gocoding.Encodable1).Encoding(marshaller, theType)
-			if encoding == nil { return }
-			encoding(scratch, renderer, value)
+			encoder := value.Interface().(gocoding.Encodable1).Encoding(marshaller, theType)
+			if encoder == nil { return }
+			encoder(scratch, renderer, value)
 		}
 	}
 }

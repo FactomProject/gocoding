@@ -3,8 +3,6 @@ package json
 import (
 	"fmt"
 	"io"
-	//"reflect"
-	"runtime"
 	
 	"github.com/firelizzard18/gocoding"
 )
@@ -18,7 +16,9 @@ func RenderIndentedJSON(writer io.Writer, prefix, tabstr string) gocoding.Render
 }
 
 type jsonRendererStack struct {
+	gocoding.BasicErrorable
 	io.Writer
+	
 	renderers []gocoding.Renderer
 	
 	indent bool
@@ -96,41 +96,6 @@ func (s *jsonRendererStack) popIndent() {
 	
 	s.prefix = s.prefix[:len(s.prefix)-1]
 }
-
-func (s *jsonRendererStack) Error(err *gocoding.Error) {
-	if s.handler == nil {
-		panic(fmt.Sprint(err.Class, ": ", err.Value))
-	} else {
-		s.handler(err)
-	}
-}
-
-func (s *jsonRendererStack) Recover(err interface{}) error {
-	if s.recovery == nil {
-		switch err.(type) {
-		case runtime.Error, string:
-			panic(err)
-			
-		case error:
-			return err.(error)
-			
-		default:
-			panic(err)
-		}
-	} else {
-		s.recovery(err)
-	}
-	
-	return nil
-}
-
-/*func (s *jsonRendererStack) SetErrorHandler(handler func(gocoding.Error)) {
-	s.handler = handler
-}
-
-func (s *jsonRendererStack) SetRecoverHandler(recovery func(interface{})) {
-	s.recovery = recovery
-}*/
 
 func (s *jsonRendererStack) StartElement(id string) int {
 	return s.renderers[0].StartElement(id)
