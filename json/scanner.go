@@ -7,21 +7,21 @@ import (
 	"github.com/firelizzard18/gocoding"
 )
 
-func NewScanner(r gocoding.SliceableRuneReader) gocoding.Scanner {
-	return &scanner{make([]gocoding.ScannerCode, 0, 5), r, stateExpectingObjectOrArray, badMarkCode}
+func ScanJSON(reader gocoding.SliceableRuneReader) gocoding.Scanner {
+	return &scanner{gocoding.BasicErrorable{}, make([]gocoding.ScannerCode, 0, 5), reader, stateExpectingObjectOrArray, badMarkCode}
 }
 
-type scanState func(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState)
+type scanState func(*scanner, gocoding.SliceableRuneReader, bool) (gocoding.ScannerCode, scanState)
 
 func ErrorState(args...interface{}) scanState {
-	return func(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+	return func(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 		s.Error(gocoding.ErrorPrint("Scanner", args...))
 		return gocoding.ScannerError, nil
 	}
 }
 
 func ErrorStatef(format string, args...interface{}) scanState {
-	return func(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+	return func(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 		s.Error(gocoding.ErrorPrintf("Scanner", format, args...))
 		return gocoding.ScannerError, nil
 	}
@@ -39,6 +39,8 @@ const (
 )
 
 type scanner struct {
+	gocoding.BasicErrorable
+	
 	stack []gocoding.ScannerCode
 	runeReader gocoding.SliceableRuneReader
 	step scanState
@@ -50,10 +52,48 @@ func (s *scanner) Mark(code markCode) {
 	s.runeReader.Mark()
 }
 
+func (s *scanner) Peek() gocoding.ScannerCode {
+	if len(s.stack) == 0 {
+		return gocoding.ScannerBadCode
+	}
+	
+	return s.stack[len(s.stack) - 1]
+}
+
 func (s *scanner) NextCode() gocoding.ScannerCode {
+	return s.nextCode(true)
+}
+
+func (s *scanner) Continue() gocoding.ScannerCode {
+	return s._continue(true)
+}
+
+func (s *scanner) NextValue() reflect.Value {
+	return s.nextValue(true)
+}
+
+func (s *scanner) NextString() string {
+	s.runeReader.Mark()
+	s.nextValue(false)
+	return s.runeReader.Slice().String()
+}
+
+func (s *scanner) nextCode(mark bool) gocoding.ScannerCode {
 	var code gocoding.ScannerCode
 	
-	code, s.step = s.step(s, s.runeReader)
+	code, s.step = s.step(s, s.runeReader, mark)
+	
+//	switch c := s.runeReader.Peek(); c {
+//	case ' ', '\t', '\n', '\r':
+//	default:
+//		switch code {
+//		case gocoding.Scanning, gocoding.ScannedLiteralEnd:
+//			fmt.Print(string(c))
+//			
+//		default:
+//			fmt.Print("\n", code.String(), ":\t", string(c))
+//		}
+//	}
 	
 	if code == gocoding.ScannedToEnd {
 		return code
@@ -63,7 +103,7 @@ func (s *scanner) NextCode() gocoding.ScannerCode {
 	case gocoding.Scanning:
 		
 	case gocoding.ScannerError:
-		s.step(s, s.runeReader)
+		s.step(s, s.runeReader, mark)
 		
 	case gocoding.ScannedLiteralBegin:
 		last := len(s.stack) - 1
@@ -131,9 +171,9 @@ func (s *scanner) NextCode() gocoding.ScannerCode {
 	return code
 }
 
-func (s *scanner) Continue() gocoding.ScannerCode {
-	next := s.NextCode()
-	for next == gocoding.Scanning { next = s.NextCode() }
+func (s *scanner) _continue(mark bool) gocoding.ScannerCode {
+	next := s.nextCode(mark)
+	for next == gocoding.Scanning { next = s.nextCode(mark) }
 	return next
 }
 
@@ -141,10 +181,10 @@ var interType = reflect.TypeOf(new(interface{})).Elem()
 var arrayType = reflect.TypeOf([]interface{}{})
 var mapType = reflect.TypeOf(map[string]interface{}{})
 
-func (s *scanner) NextValue() reflect.Value {
+func (s *scanner) nextValue(mark bool) reflect.Value {
 	// make sure there's a begin code on the stack
 	for len(s.stack) == 0 {
-		switch code := s.NextCode(); code {
+		switch code := s.nextCode(mark); code {
 		case gocoding.ScannerError, gocoding.ScannedToEnd:
 			return reflect.ValueOf(nil)
 		}
@@ -155,22 +195,32 @@ func (s *scanner) NextValue() reflect.Value {
 	
 	switch code {
 	case gocoding.ScannedKeyBegin:
-		next := s.Continue()
+		next := s._continue(mark)
 		
 		if next != gocoding.ScannedKeyEnd {
 			s.Error(gocoding.ErrorPrintf("Scanner", "Scanning: expected %s, got %s", gocoding.ScannedKeyEnd.String(), gocoding.ScannedKeyEnd.String()))
 			return reflect.ValueOf(nil)
 		}
 		
-		return reflect.ValueOf(s.runeReader.Slice().String())
+		if !mark { break }
+		
+		val, err := strconv.Unquote(s.runeReader.Slice().String())
+		if err != nil {
+			s.Error(gocoding.ErrorPrintf("Scanner", "Scanning: %s", err.Error()))
+			return reflect.ValueOf(nil)
+		}
+		
+		return reflect.ValueOf(val)
 		
 	case gocoding.ScannedLiteralBegin:
-		next := s.Continue()
+		next := s._continue(mark)
 		
 		if next != gocoding.ScannedLiteralEnd {
 			s.Error(gocoding.ErrorPrintf("Scanner", "Scanning: expected %s, got %s", gocoding.ScannedLiteralEnd.String(), gocoding.ScannedLiteralEnd.String()))
 			return reflect.ValueOf(nil)
 		}
+		
+		if !mark { break }
 		
 		var err error
 		var val interface{}
@@ -206,11 +256,19 @@ func (s *scanner) NextValue() reflect.Value {
 		return reflect.ValueOf(val)
 		
 	case gocoding.ScannedArrayBegin:
+		if !mark {
+			for len(s.stack) >= last {
+				if s._continue(mark) == gocoding.ScannedArrayEnd { break }
+				s.nextValue(mark)
+			}
+			break
+		}
+		
 		array := reflect.MakeSlice(arrayType, 0, 3)
 		
 		for len(s.stack) >= last {
-			if s.Continue() == gocoding.ScannedArrayEnd { break }
-			val := s.NextValue()
+			if s._continue(mark) == gocoding.ScannedArrayEnd { break }
+			val := s.nextValue(mark)
 			if !val.IsValid() { break }
 			array = reflect.Append(array, val)
 		}
@@ -218,15 +276,26 @@ func (s *scanner) NextValue() reflect.Value {
 		return array
 		
 	case gocoding.ScannedStructBegin:
+		if !mark {
+			for len(s.stack) >= last {
+				if s._continue(mark) == gocoding.ScannedStructEnd { break }
+				s.nextValue(mark)
+				
+				s._continue(mark)
+				s.nextValue(mark)
+			}
+			break
+		}
+		
 		mapv := reflect.MakeMap(mapType)
 		
 		for len(s.stack) >= last {
-			if s.Continue() == gocoding.ScannedStructEnd { break }
-			key := s.NextValue()
+			if s._continue(mark) == gocoding.ScannedStructEnd { break }
+			key := s.nextValue(mark)
 			if !key.IsValid() { break }
 			
-			s.Continue()
-			val := s.NextValue()
+			s._continue(mark)
+			val := s.nextValue(mark)
 			if !val.IsValid() {
 				s.Error(gocoding.ErrorPrintf("Scanner", "Scanning map: valid key %s but invalid value", key.Interface()))
 				return reflect.ValueOf(nil)
@@ -245,12 +314,8 @@ func (s *scanner) NextValue() reflect.Value {
 	return reflect.ValueOf(nil)
 }
 
-func (s *scanner) Error(err *gocoding.Error) {
-	panic(err)
-}
-
 // initial state
-func stateExpectingObjectOrArray(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateExpectingObjectOrArray(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -272,11 +337,11 @@ func stateExpectingObjectOrArray(s *scanner, r gocoding.SliceableRuneReader) (go
 	}
 }
 
-func stateDone(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateDone(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	return gocoding.ScannedToEnd, stateDone
 }
 
-func stateExpectingValue(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateExpectingValue(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -288,19 +353,19 @@ func stateExpectingValue(s *scanner, r gocoding.SliceableRuneReader) (gocoding.S
 		return gocoding.Scanning, stateExpectingValue
 		
 	case '"':
-		s.Mark(markedString)
+		if mark { s.Mark(markedString) }
 		return gocoding.ScannedLiteralBegin, stateInString
 		
 	case '-':
-		s.Mark(markedInt)
+		if mark { s.Mark(markedInt) }
 		return gocoding.ScannedLiteralBegin, stateInNumberNeg
 		
 	case '0':
-		s.Mark(markedInt)
+		if mark { s.Mark(markedInt) }
 		return gocoding.ScannedLiteralBegin, stateInNumber0
 		
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		s.Mark(markedInt)
+		if mark { s.Mark(markedInt) }
 		return gocoding.ScannedLiteralBegin, stateInNumberDigit
 		
 		// putting { directly in a string breaks goclipse parsing
@@ -317,15 +382,15 @@ func stateExpectingValue(s *scanner, r gocoding.SliceableRuneReader) (gocoding.S
 		return gocoding.ScannedArrayEnd, stateInObjectOrArrayExpectingComma
 		
 	case 't':
-		s.Mark(markedBool)
+		if mark { s.Mark(markedBool) }
 		return gocoding.ScannedLiteralBegin, stateInTrue
 		
 	case 'f':
-		s.Mark(markedBool)
+		if mark { s.Mark(markedBool) }
 		return gocoding.ScannedLiteralBegin, stateInFalse
 		
 	case 'n':
-		s.Mark(markedNull)
+		if mark { s.Mark(markedNull) }
 		return gocoding.ScannedLiteralBegin, stateInNull
 		
 	default:
@@ -333,7 +398,7 @@ func stateExpectingValue(s *scanner, r gocoding.SliceableRuneReader) (gocoding.S
 	}
 }
 
-func stateInObjectExpectingKey(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInObjectExpectingKey(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -345,7 +410,7 @@ func stateInObjectExpectingKey(s *scanner, r gocoding.SliceableRuneReader) (goco
 		return gocoding.Scanning, stateInObjectExpectingKey
 		
 	case '"':
-		r.Mark()
+		if mark { r.Mark() }
 		return gocoding.ScannedLiteralBegin, stateInString
 		
 	default:
@@ -353,7 +418,7 @@ func stateInObjectExpectingKey(s *scanner, r gocoding.SliceableRuneReader) (goco
 	}
 }
 
-func stateInObjectExpectingColon(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInObjectExpectingColon(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -372,7 +437,7 @@ func stateInObjectExpectingColon(s *scanner, r gocoding.SliceableRuneReader) (go
 	}
 }
 
-func stateInObjectOrArrayExpectingComma(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInObjectOrArrayExpectingComma(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -397,7 +462,7 @@ func stateInObjectOrArrayExpectingComma(s *scanner, r gocoding.SliceableRuneRead
 	}
 }
 
-func stateInString(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInString(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -416,7 +481,7 @@ func stateInString(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Scanner
 	}
 }
 
-func stateInStringEscaped(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInStringEscaped(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -437,7 +502,7 @@ func stateInStringEscaped(s *scanner, r gocoding.SliceableRuneReader) (gocoding.
 
 type unicodeHexDigitNum uint8
 
-func (u unicodeHexDigitNum) stateInStringUnicode(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func (u unicodeHexDigitNum) stateInStringUnicode(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -458,7 +523,7 @@ func (u unicodeHexDigitNum) stateInStringUnicode(s *scanner, r gocoding.Sliceabl
 	}
 }
 
-func stateInNumberNeg(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInNumberNeg(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -477,7 +542,7 @@ func stateInNumberNeg(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Scan
 	}
 }
 
-func stateInNumber0(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInNumber0(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -499,7 +564,7 @@ func stateInNumber0(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Scanne
 	}
 }
 
-func stateInNumberDigit(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInNumberDigit(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -524,7 +589,7 @@ func stateInNumberDigit(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Sc
 	}
 }
 
-func stateInNumberDot(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInNumberDot(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -540,7 +605,7 @@ func stateInNumberDot(s *scanner, r gocoding.SliceableRuneReader) (gocoding.Scan
 	}
 }
 
-func stateInNumberPostDot(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInNumberPostDot(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -557,7 +622,7 @@ func stateInNumberPostDot(s *scanner, r gocoding.SliceableRuneReader) (gocoding.
 	}
 }
 
-func stateInNumberExponent(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInNumberExponent(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -576,7 +641,7 @@ func stateInNumberExponent(s *scanner, r gocoding.SliceableRuneReader) (gocoding
 	}
 }
 
-func stateInNumberSignedExponent(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInNumberSignedExponent(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -592,7 +657,7 @@ func stateInNumberSignedExponent(s *scanner, r gocoding.SliceableRuneReader) (go
 	}
 }
 
-func stateInNumberExponentDigit(s *scanner, r gocoding.SliceableRuneReader) (gocoding.ScannerCode, scanState) {
+func stateInNumberExponentDigit(s *scanner, r gocoding.SliceableRuneReader, mark bool) (gocoding.ScannerCode, scanState) {
 	c := r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -609,7 +674,7 @@ func stateInNumberExponentDigit(s *scanner, r gocoding.SliceableRuneReader) (goc
 	}
 }
 
-func stateInTrue(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.ScannerCode, state scanState) {
+func stateInTrue(s *scanner, r gocoding.SliceableRuneReader, mark bool) (code gocoding.ScannerCode, state scanState) {
 	p, c := r.Peek(), r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -639,7 +704,7 @@ func stateInTrue(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.Scan
 	return gocoding.ScannerError, ErrorStatef(`Expecting 'true', got %c`, c)
 }
 
-func stateInFalse(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.ScannerCode, state scanState) {
+func stateInFalse(s *scanner, r gocoding.SliceableRuneReader, mark bool) (code gocoding.ScannerCode, state scanState) {
 	p, c := r.Peek(), r.Next()
 	
 	if c == gocoding.EndOfText {
@@ -674,7 +739,7 @@ func stateInFalse(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.Sca
 	return gocoding.ScannerError, ErrorStatef(`Expecting 'false', got %c`, c)
 }
 
-func stateInNull(s *scanner, r gocoding.SliceableRuneReader) (code gocoding.ScannerCode, state scanState) {
+func stateInNull(s *scanner, r gocoding.SliceableRuneReader, mark bool) (code gocoding.ScannerCode, state scanState) {
 	p, c := r.Peek(), r.Next()
 	
 	if c == gocoding.EndOfText {

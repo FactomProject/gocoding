@@ -26,7 +26,6 @@ func (m *marshaller) Marshal(renderer Renderer, obj interface{}) (err error) {
 	}()
 	
 	m.MarshalObject(renderer, obj)
-	
 	return
 }
 
@@ -93,14 +92,13 @@ func (m *marshaller) recurseSafeFindAndCacheEncoder(theType reflect.Type) (encod
 	
 	// replace the encoder with one that returns an error so the indirect encoder doesn't explode
 	if encoder == nil {
-		encoder = func(scratch [64]byte, renderer Renderer, value reflect.Value) {
+		encoder = func([64]byte, Renderer, reflect.Value) {
 			panic(ErrorPrint("Encoding", "Unsupported type: ", theType))
 		}
 	}
 	
 	// unblock the indirect encoder
 	wg.Done()
-	
 	return
 }
 
