@@ -166,7 +166,7 @@ var (
 )
 
 func stringEncoder(scratch [64]byte, renderer gocoding.Renderer, value reflect.Value) {
-	renderer.Printf(`"%s"`, value.String())
+	renderer.PrintString(value.String())
 }
 
 func InterfaceEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Encoder {
@@ -255,7 +255,7 @@ func MapEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.
 
 func SliceEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Encoder {
 	if theType.Elem().Kind() == reflect.Uint8 {
-		return byteSliceEncoder
+		return ByteSliceEncoder
 	}
 	
 	encoder := ArrayEncoding(marshaller, theType)
@@ -270,7 +270,7 @@ func SliceEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocodin
 	}
 }
 
-func byteSliceEncoder(scratch [64]byte, renderer gocoding.Renderer, value reflect.Value) {
+func ByteSliceEncoder(scratch [64]byte, renderer gocoding.Renderer, value reflect.Value) {
 	if value.IsNil() {
 		renderer.WriteNil()
 		return

@@ -44,6 +44,7 @@ type Renderer interface {
 	Print(args...interface{}) int
 	Printf(format string, args...interface{}) int
 	WriteNil() int
+	PrintString(string) int
 	
 	StartStruct() int
 	StopStruct() int
