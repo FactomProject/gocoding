@@ -35,9 +35,6 @@ func (u *unmarshaller) UnmarshalObject(scanner Scanner, obj interface{}) {
 }
 
 func (u *unmarshaller) UnmarshalValue(scanner Scanner, value reflect.Value) {
-	// asdf valid? not pointer?
-	value = NormalizeValue(scanner, "Unmarshalling", value)
-	
 	decoder := u.FindDecoder(value.Type())
 	if decoder == nil { return }
 	
@@ -53,8 +50,8 @@ func (u *unmarshaller) FindDecoder(theType reflect.Type) (decoder Decoder) {
 		return decoder
 	}
 	
-	switch theType.Elem().Kind() {
-	case reflect.Array, reflect.Interface, reflect.Map, reflect.Slice, reflect.Struct:
+	switch theType.Kind() {
+	case reflect.Array, reflect.Interface, reflect.Map, reflect.Slice, reflect.Struct, reflect.Ptr:
 		decoder = u.recurseSafeFindAndCacheDecoder(theType)
 		
 	case reflect.Bool, reflect.String,
@@ -74,6 +71,9 @@ func (u *unmarshaller) FindDecoder(theType reflect.Type) (decoder Decoder) {
 	return decoder
 }
 
+var decodableType1 = reflect.TypeOf(new(Decodable1)).Elem()
+var decodableType2 = reflect.TypeOf(new(Decodable2)).Elem()
+
 func (u *unmarshaller) recurseSafeFindAndCacheDecoder(theType reflect.Type) (decoder Decoder) {
 	// to deal with recursive types, create an indirect decoder
 	var wg sync.WaitGroup
@@ -87,18 +87,48 @@ func (u *unmarshaller) recurseSafeFindAndCacheDecoder(theType reflect.Type) (dec
 	u.CacheDecoder(theType, indirect)
 	
 	// find the decoder
+	decoder = u.recurseUnsafeFindDecoder(theType)
+	
+	// unblock the indirect encoder
+	wg.Done()
+	return
+}
+
+func (u *unmarshaller) checkDecodable(theType reflect.Type) Decoder {
+	if theType.ConvertibleTo(decodableType1) {
+		return reflect.New(theType).Elem().Interface().(Decodable1).Decoding(u, theType)
+	}
+	
+	if theType.ConvertibleTo(decodableType2) {
+		return Decodable2Decoding(u, theType)
+	}
+	
+	return nil
+}
+
+func (u *unmarshaller) recurseUnsafeFindDecoder(theType reflect.Type) Decoder {
+	decoder := u.checkDecodable(theType)
+	if decoder != nil { return decoder }
+	
 	decoder = u.decoding(u, theType)
 	
-	// replace the decoder with one that returns an error so the indirect decoder doesn't explode
 	if decoder == nil {
 		decoder = func([64]byte, Scanner, reflect.Value) {
 			panic(ErrorPrint("Decoding", "Unsupported type: ", theType))
 		}
 	}
 	
-	// unblock the indirect encoder
-	wg.Done()
-	return
+	if theType.Kind() == reflect.Ptr {
+		return decoder
+	}
+	
+	indirect := u.checkDecodable(reflect.PtrTo(theType))
+	
+	if indirect != nil {
+		decoder = TryIndirectDecoding(decoder, indirect)
+	}
+	
+	return decoder
 }
 
 func (u *unmarshaller) IsCached(theType reflect.Type) bool {

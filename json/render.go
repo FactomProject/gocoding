@@ -2,16 +2,16 @@ package json
 
 import (
 	"fmt"
-	"io"
-	
 	"github.com/firelizzard18/gocoding"
+	"io"
+	"strconv"
 )
 
-func RenderJSON(writer io.Writer) gocoding.Renderer {
+func Render(writer io.Writer) gocoding.Renderer {
 	return &jsonRendererStack{Writer: writer, renderers: make([]gocoding.Renderer, 0, 10)}
 }
 
-func RenderIndentedJSON(writer io.Writer, prefix, tabstr string) gocoding.Renderer {
+func RenderIndented(writer io.Writer, prefix, tabstr string) gocoding.Renderer {
 	return &jsonRendererStack{Writer: writer, renderers: make([]gocoding.Renderer, 0, 10), indent: true, prefix: []string{prefix}, tabstr: tabstr}
 }
 
@@ -24,9 +24,6 @@ type jsonRendererStack struct {
 	indent bool
 	prefix []string
 	tabstr string
-	
-	handler func(*gocoding.Error)
-	recovery func(interface{})
 }
 
 func (s *jsonRendererStack) push(r gocoding.Renderer) {
@@ -73,6 +70,11 @@ func (s *jsonRendererStack) Printf(format string, args...interface{}) int {
 
 func (s *jsonRendererStack) WriteNil() int {
 	n, _ := s.Write([]byte("null"))
+	return n
+}
+
+func (s *jsonRendererStack) PrintString(str string) int {
+	n, _ := s.Write([]byte(strconv.Quote(str)))
 	return n
 }
 

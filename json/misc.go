@@ -9,30 +9,30 @@ import (
 )
 
 func NewMarshaller() gocoding.Marshaller {
-	return gocoding.NewMarshaller(JSONEncoding)
+	return gocoding.NewMarshaller(Encoding)
 }
 
-func Marshal(writer io.Writer, obj interface{}) {
-	NewMarshaller().Marshal(RenderJSON(writer), obj)
+func Marshal(writer io.Writer, obj interface{}) error {
+	return NewMarshaller().Marshal(Render(writer), obj)
 }
 
-func MarshalIndent(writer io.Writer, obj interface{}, prefix, indent string) {
-	NewMarshaller().Marshal(RenderIndentedJSON(writer, prefix, indent), obj)
+func MarshalIndent(writer io.Writer, obj interface{}, prefix, indent string) error {
+	return NewMarshaller().Marshal(RenderIndented(writer, prefix, indent), obj)
 }
 
 func NewUnmarshaller() gocoding.Unmarshaller {
-	return gocoding.NewUnmarshaller(JSONDecoding)
+	return gocoding.NewUnmarshaller(Decoding)
 }
 
-func Unmarshal(reader gocoding.SliceableRuneReader, obj interface{}) {
-	NewUnmarshaller().Unmarshal(ScanJSON(reader), obj)
+func Unmarshal(reader gocoding.SliceableRuneReader, obj interface{}) error {
+	return NewUnmarshaller().Unmarshal(Scan(reader), obj)
 }
 
 
 
 var jsonMarshallerType = reflect.TypeOf(new(json.Marshaler)).Elem()
 
-func JSONEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Encoder {
+func Encoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Encoder {
 	if theType.ConvertibleTo(jsonMarshallerType) {
 		return jsonMarshallerEncoder
 	}
@@ -51,7 +51,7 @@ func jsonMarshallerEncoder(scratch [64]byte, renderer gocoding.Renderer, value r
 
 var jsonUnmarshallerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
 
-func JSONDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocoding.Decoder {
+func Decoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocoding.Decoder {
 	if theType.ConvertibleTo(jsonUnmarshallerType) {
 		return jsonUnmarshallerDecoder
 	}

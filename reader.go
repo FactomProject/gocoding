@@ -8,14 +8,39 @@ import (
 	"unicode/utf8"
 )
 
+func Read(source io.Reader, maxcap int) SliceableRuneReader {
+	return &readerRuneReader{
+		source: source,
+		cbr: &circularRuneBuffer{make([]rune, 0, 16), 0, maxcap},
+	}
+}
+
+func ReadSlice(slice []rune) SliceableRuneReader {
+	return &runeSliceReader{runes: slice}
+}
+
+func ReadBytes(slice []byte) SliceableRuneReader {
+	return &byteSliceReader{
+		runeSliceReader{
+			runes: make([]rune, 0, len(slice)),
+		},
+		slice,
+	}
+}
+
+func ReadString(data string) SliceableRuneReader {
+	return &stringReader{
+		runeSliceReader{
+			runes: make([]rune, 0, len(data)),
+		},
+		data,
+	}
+}
+
 type runeSliceReader struct {
 	runes []rune
 	cursor int
 	mark int
-}
-
-func ReadRunesFromRuneSlice(slice []rune) SliceableRuneReader {
-	return &runeSliceReader{runes: slice}
 }
 
 func (r *runeSliceReader) Next() rune {
@@ -57,7 +82,7 @@ func (r *runeSliceReader) Mark() {
 }
 
 func (r *runeSliceReader) Slice() SliceableRuneReader {
-	return ReadRunesFromRuneSlice(r.runes[r.mark:r.cursor])
+	return ReadSlice(r.runes[r.mark:r.cursor])
 }
 
 func (r *runeSliceReader) String() string {
@@ -69,17 +94,8 @@ type byteSliceReader struct {
 	remaining []byte
 }
 
-func ReadRunesFromByteSlice(slice []byte) SliceableRuneReader {
-	return &byteSliceReader{
-		runeSliceReader{
-			runes: make([]rune, 0, len(slice)),
-		},
-		slice,
-	}
-}
-
 func (r *byteSliceReader) Next() rune {
-	if r.Done() {
+	if r.Done() && r.runeSliceReader.Done() {
 		return EndOfText
 	}
 	
@@ -106,6 +122,41 @@ func (r *byteSliceReader) Done() bool {
 
 func (r *byteSliceReader) String() string {
 	return r.runeSliceReader.String() + string(r.remaining)
+}
+
+type stringReader struct {
+	runeSliceReader
+	remaining string
+}
+
+func (r *stringReader) Next() rune {
+	if r.Done() {
+		return EndOfText
+	}
+	
+	if !r.runeSliceReader.Done() {
+		return r.runeSliceReader.Next()
+	}
+	
+	c, n := utf8.DecodeRuneInString(r.remaining)
+	r.remaining = r.remaining[n:]
+	
+	r.runes = append(r.runes, c)
+	r.cursor++
+	
+	return r.Peek()
+}
+
+func (r *stringReader) Peek() rune {
+	return r.runeSliceReader.Peek()
+}
+
+func (r *stringReader) Done() bool {
+	return len(r.remaining) == 0
+}
+
+func (r *stringReader) String() string {
+	return r.runeSliceReader.String() + r.remaining
 }
 
 // circularRuneBuffer is a size-limited rune buffer that becomes circular when
@@ -149,7 +200,8 @@ func (b *circularRuneBuffer) put(r rune) bool {
 		
 	// acting like a normal slice
 	case len(b.runes) < cap(b.runes):
-		b.runes[len(b.runes)] = r
+		b.runes = b.runes[:len(b.runes)+1]
+		b.runes[len(b.runes)-1] = r
 		return true
 		
 	// at max capacity, overwrite circularly
@@ -236,13 +288,6 @@ type readerRuneReader struct {
 	cbr *circularRuneBuffer // rune buffer
 	cursor int			// cursor for the rune buffer
 	mark int			// mark/cursor for slicing; see SliceableRuneReader.Mark()
-}
-
-func ReadRunesFromReader(source io.Reader, maxcap int) SliceableRuneReader {
-	return &readerRuneReader{
-		source: source,
-		cbr: &circularRuneBuffer{make([]rune, 0, 16), 0, maxcap},
-	}
 }
 
 func (r *readerRuneReader) Next() rune {
@@ -351,7 +396,7 @@ func (r *readerRuneReader) Mark() {
 }
 
 func (r *readerRuneReader) Slice() SliceableRuneReader {
-	return ReadRunesFromRuneSlice(r.cbr.slice(r.mark, r.cursor))
+	return ReadSlice(r.cbr.slice(r.mark, r.cursor))
 }
 
 func (r *readerRuneReader) String() string {
