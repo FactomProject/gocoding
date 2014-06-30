@@ -7,7 +7,7 @@ import (
 	"github.com/firelizzard18/gocoding"
 )
 
-func ScanJSON(reader gocoding.SliceableRuneReader) gocoding.Scanner {
+func Scan(reader gocoding.SliceableRuneReader) gocoding.Scanner {
 	return &scanner{gocoding.BasicErrorable{}, make([]gocoding.ScannerCode, 0, 5), reader, stateExpectingObjectOrArray, badMarkCode}
 }
 
@@ -89,6 +89,9 @@ func (s *scanner) nextCode(mark bool) gocoding.ScannerCode {
 //		switch code {
 //		case gocoding.Scanning, gocoding.ScannedLiteralEnd:
 //			fmt.Print(string(c))
+//			
+//		case gocoding.ScannedToEnd:
+//			fmt.Println("\nEOF\n")
 //			
 //		default:
 //			fmt.Print("\n", code.String(), ":\t", string(c))
@@ -174,6 +177,7 @@ func (s *scanner) nextCode(mark bool) gocoding.ScannerCode {
 func (s *scanner) _continue(mark bool) gocoding.ScannerCode {
 	next := s.nextCode(mark)
 	for next == gocoding.Scanning { next = s.nextCode(mark) }
+//	fmt.Println("Continued to ", next.String())
 	return next
 }
 

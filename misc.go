@@ -2,47 +2,8 @@ package gocoding
 
 import (
 	"fmt"
-	"reflect"
 	"runtime"
 )
-
-// turn everything into a pointer value
-//   this makes unmarshalling much simpler
-//   this will return a pointer to a non-pointer
-//   if value is a pointer to a non-pointer, it will be returned
-//   if value is a non-pointer, a pointer to it will be returned
-//   else, Normalize will dereference value and try again
-func NormalizeValue(e Errorable, class string, value reflect.Value) reflect.Value {
-	if value.Kind() != reflect.Ptr {
-//		if value.Type().Name() == "" { panic("Don't know what to do") }
-		if !value.CanAddr() { e.Error(ErrorPrint(class, "Normalization failed: value is not addressable: ", value)) }
-		value = value.Addr()
-	}
-	
-	for {
-		if value.IsNil() {
-			value.Set(reflect.New(value.Type().Elem()))
-		}
-		
-		if value.Elem().Kind() != reflect.Ptr {
-			return value
-		}
-		
-		value = value.Elem()
-	}
-}
-
-func NormalizeType(theType reflect.Type) reflect.Type {
-	if theType.Kind() != reflect.Ptr {
-		return reflect.PtrTo(theType)
-	}
-	
-	for theType.Elem().Kind() == reflect.Ptr {
-		theType = theType.Elem()
-	}
-	
-	return theType
-}
 
 func ErrorPrint(class string, args...interface{}) *Error {
 	return &Error{class, fmt.Sprint(args...)}
@@ -86,10 +47,8 @@ func (s *BasicErrorable) Recover(err interface{}) error {
 			panic(err)
 		}
 	} else {
-		s.recovery(err)
+		return s.recovery(err)
 	}
-	
-	return nil
 }
 
 func (s *BasicErrorable) SetRecoverHandler(handler func(interface{}) error) {
