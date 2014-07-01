@@ -73,7 +73,7 @@ func Decodable2Decoding(unmarshaller Unmarshaller, theType reflect.Type) Decoder
 			// get the key
 			key := scanner.NextValue()
 			if key.Kind() != reflect.String {
-				ErrorDecoding(ErrorPrint("Decoding", "Invalid key type %s", key.Type().String()))
+				scanner.Error(ErrorPrint("Decoding", "Invalid key type %s", key.Type().String()))
 			}
 			keystr := key.String()
 			
