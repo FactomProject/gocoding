@@ -56,12 +56,17 @@ func Decoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocoding
 		return jsonUnmarshallerDecoder
 	}
 	
-	return text.Decoding(unmarshaller, theType)
+	decoder := text.Decoding(unmarshaller, theType)
+	
+	if reflect.PtrTo(theType).ConvertibleTo(jsonUnmarshallerType) {
+		return gocoding.TryIndirectDecoding(decoder, jsonUnmarshallerDecoder)
+	}
+	
+	return decoder
 }
 
 func jsonUnmarshallerDecoder(scratch [64]byte, scanner gocoding.Scanner, value reflect.Value) {
 	juvalue := value.Interface().(json.Unmarshaler)
-	scanner.Continue()
 	json := scanner.NextString()
 	err := juvalue.UnmarshalJSON([]byte(json))
 	if err != nil { scanner.Error(gocoding.ErrorPrint("JSON Marshal", err)) }

@@ -1,6 +1,7 @@
 package text
 
 import (
+"fmt"
 	"encoding"
 	"encoding/base64"
 	"github.com/firelizzard18/gocoding"
@@ -18,38 +19,47 @@ func GVTS(value reflect.Value) string {
 	return value.Type().String()
 }
 
-var decodableType1 = reflect.TypeOf(new(gocoding.Decodable1)).Elem()
-var decodableType2 = reflect.TypeOf(new(gocoding.Decodable2)).Elem()
 var textUnmarshallerType = reflect.TypeOf(new(encoding.TextUnmarshaler)).Elem()
 
 func Decoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocoding.Decoder {
+	if theType.ConvertibleTo(textUnmarshallerType) {
+		return textUnmarshallerDecoder
+	}
+	
+	var decoder gocoding.Decoder
 	switch theType.Kind() {
 	case reflect.Bool, reflect.Float32, reflect.Float64, reflect.String,
 		 reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		 reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return decoderType{theType}.decode
+		decoder = decoderType{theType}.decode
 		
 	case reflect.Interface:
-		return InterfaceDecoding(unmarshaller, theType)
+		decoder = InterfaceDecoding(unmarshaller, theType)
 	
 	case reflect.Struct:
-		return StructDecoding(unmarshaller, theType)
+		decoder = StructDecoding(unmarshaller, theType)
 		
 	case reflect.Map:
-		return MapDecoding(unmarshaller, theType)
+		decoder = MapDecoding(unmarshaller, theType)
 		
 	case reflect.Slice:
-		return SliceDecoding(unmarshaller, theType)
+		decoder = SliceDecoding(unmarshaller, theType)
 		
 	case reflect.Array:
-		return ArrayDecoding(unmarshaller, theType)
+		decoder = ArrayDecoding(unmarshaller, theType)
 		
 	case reflect.Ptr:
-		return PtrDecoding(unmarshaller, theType)
+		decoder = PtrDecoding(unmarshaller, theType)
 	
 	default:
-		return gocoding.ErrorDecoding(gocoding.ErrorPrint("Decoding", "Unsupported type: ", GTTS(theType)))
+		decoder = gocoding.ErrorDecoding(gocoding.ErrorPrint("Decoding", "Unsupported type: ", GTTS(theType)))
 	}
+	
+	if reflect.PtrTo(theType).ConvertibleTo(textUnmarshallerType) {
+		return gocoding.TryIndirectDecoding(decoder, textUnmarshallerDecoder)
+	}
+	
+	return decoder
 }
 
 func errorCheck(scanner gocoding.Scanner, err error) {
@@ -84,6 +94,7 @@ func (t decoderType) decode(scratch [64]byte, scanner gocoding.Scanner, value re
 
 func InterfaceDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocoding.Decoder {
 	return func (scratch [64]byte, scanner gocoding.Scanner, value reflect.Value) {
+		fmt.Println("interface decoding", theType, value)
 		if value.IsNil() {
 			value.Set(scanner.NextValue())
 		} else {
@@ -137,11 +148,6 @@ func StructDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) go
 		
 		if !gocoding.PeekCheck(scanner, gocoding.ScannedStructBegin, gocoding.ScannedMapBegin) { return }
 		
-//		if !value.IsValid() || value.IsNil() {
-//			if !value.CanSet() { gocoding.ErrorDecoding(gocoding.ErrorPrint("Decoding", "Invalid or nil and unsettable value")); return }
-//			value.Set(reflect.Zero(theType))
-//		}
-		
 		for {
 			// get the next code, check for the end
 			code := scanner.Continue()
@@ -157,7 +163,7 @@ func StructDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) go
 			// get the key
 			key := scanner.NextValue()
 			if key.Kind() != reflect.String {
-				gocoding.ErrorDecoding(gocoding.ErrorPrint("Decoding", "Invalid key type %s", key.Type().String()))
+				scanner.Error(gocoding.ErrorPrint("Decoding", "Invalid key type %s", key.Type().String()))
 			}
 			keystr := key.String()
 			
@@ -210,11 +216,6 @@ func MapDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocod
 		
 		if !gocoding.PeekCheck(scanner, gocoding.ScannedStructBegin, gocoding.ScannedMapBegin) { return }
 		
-//		if !value.IsValid() || value.IsNil() {
-//			if !value.CanSet() { gocoding.ErrorDecoding(gocoding.ErrorPrint("Decoding", "Invalid or nil and unsettable value")); return }
-//			value.Set(reflect.Zero(theType))
-//		}
-		
 		for {
 			// get the next code, check for the end
 			code := scanner.Continue()
@@ -230,7 +231,7 @@ func MapDecoding(unmarshaller gocoding.Unmarshaller, theType reflect.Type) gocod
 			// get the key
 			key := scanner.NextValue()
 			if key.Kind() != reflect.String {
-				gocoding.ErrorDecoding(gocoding.ErrorPrint("Decoding", "Invalid key type %s", key.Type().String()))
+				scanner.Error(gocoding.ErrorPrint("Decoding", "Invalid key type %s", key.Type().String()))
 			}
 			
 			elem := value.MapIndex(key)
@@ -331,7 +332,7 @@ func ByteSliceDecoder(scratch [64]byte, scanner gocoding.Scanner, value reflect.
 		value.Set(reflect.ValueOf(data))
 	
 	default:
-		gocoding.ErrorDecoding(gocoding.ErrorPrint("Decoding", "Decoding byte slice: expected String, got %s", bytes.Type().String()))
+		scanner.Error(gocoding.ErrorPrint("Decoding", "Decoding byte slice: expected String, got %s", bytes.Type().String()))
 	}
 }
 
