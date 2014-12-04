@@ -2,7 +2,7 @@ package json
 
 import (
 	"testing"
-	"github.com/firelizzard18/gocoding"
+	"github.com/FactomProject/gocoding"
 )
 
 var unmarshaller gocoding.Unmarshaller

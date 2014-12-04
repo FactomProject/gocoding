@@ -4,7 +4,7 @@ import (
 "fmt"
 	"encoding"
 	"encoding/base64"
-	"github.com/firelizzard18/gocoding"
+	"github.com/FactomProject/gocoding"
 	"reflect"
 	"strings"
 )

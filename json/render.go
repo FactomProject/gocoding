@@ -2,7 +2,7 @@ package json
 
 import (
 	"fmt"
-	"github.com/firelizzard18/gocoding"
+	"github.com/FactomProject/gocoding"
 	"io"
 	"strconv"
 )

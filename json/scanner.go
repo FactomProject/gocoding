@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strconv"
 	
-	"github.com/firelizzard18/gocoding"
+	"github.com/FactomProject/gocoding"
 )
 
 func Scan(reader gocoding.SliceableRuneReader) gocoding.Scanner {

@@ -3,7 +3,7 @@ package text
 import (
 	"encoding"
 	"encoding/base64"
-	"github.com/firelizzard18/gocoding"
+	"github.com/FactomProject/gocoding"
 	"math"
 	"reflect"
 	"strconv"

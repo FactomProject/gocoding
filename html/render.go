@@ -2,8 +2,8 @@ package html
 
 import (
 	"fmt"
-	"github.com/firelizzard18/gocoding"
-	"github.com/firelizzard18/gocoding/text"
+	"github.com/FactomProject/gocoding"
+	"github.com/FactomProject/gocoding/text"
 	"io"
 )
 
