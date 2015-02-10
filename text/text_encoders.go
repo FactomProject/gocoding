@@ -291,6 +291,7 @@ func ByteSliceEncoder(scratch [64]byte, renderer gocoding.Renderer, value reflec
 
 	dst := make([]byte, hex.EncodedLen(count))
 	hex.Encode(dst, bytes)
+	renderer.Write(dst)
 
 	renderer.Print(`"`)
 }
