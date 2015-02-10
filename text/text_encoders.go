@@ -269,7 +269,8 @@ func SliceEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocodin
 		return nil
 	}
 
-	return func(scratch [64]byte, renderer gocoding.Renderer, value reflect.Value) {
+	return func(scratch [64]byte, renderer gocoding.Renderer,
+		value reflect.Value) {
 		if value.IsNil() {
 			renderer.WriteNil()
 		} else {
@@ -278,7 +279,8 @@ func SliceEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocodin
 	}
 }
 
-func ByteSliceEncoder(scratch [64]byte, renderer gocoding.Renderer, value reflect.Value) {
+func ByteSliceEncoder(scratch [64]byte, renderer gocoding.Renderer,
+	value reflect.Value) {
 	if value.IsNil() {
 		renderer.WriteNil()
 		return
@@ -296,7 +298,8 @@ func ByteSliceEncoder(scratch [64]byte, renderer gocoding.Renderer, value reflec
 	renderer.Print(`"`)
 }
 
-func ArrayEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Encoder {
+func ArrayEncoding(marshaller gocoding.Marshaller,
+	theType reflect.Type) gocoding.Encoder {
 	encoder := marshaller.FindEncoder(theType.Elem())
 	if encoder == nil {
 		return nil
@@ -318,7 +321,8 @@ func ArrayEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocodin
 	}
 }
 
-func PtrEncoding(marshaller gocoding.Marshaller, theType reflect.Type) gocoding.Encoder {
+func PtrEncoding(marshaller gocoding.Marshaller,
+	theType reflect.Type) gocoding.Encoder {
 	encoder := marshaller.FindEncoder(theType.Elem())
 	if encoder == nil {
 		return nil
