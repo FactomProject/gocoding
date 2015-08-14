@@ -11,10 +11,10 @@ func NewUnmarshaller(decoding Decoding) Unmarshaller {
 
 type unmarshaller struct {
 	decoding Decoding
-	
+
 	sync.RWMutex
 	cache map[reflect.Type]Decoder
-	
+
 	scratch [64]byte
 }
 
@@ -24,7 +24,7 @@ func (u *unmarshaller) Unmarshal(scanner Scanner, obj interface{}) (err error) {
 			err = scanner.Recover(r)
 		}
 	}()
-	
+
 	scanner.Continue()
 	u.UnmarshalObject(scanner, obj)
 	return
@@ -36,8 +36,10 @@ func (u *unmarshaller) UnmarshalObject(scanner Scanner, obj interface{}) {
 
 func (u *unmarshaller) UnmarshalValue(scanner Scanner, value reflect.Value) {
 	decoder := u.FindDecoder(value.Type())
-	if decoder == nil { return }
-	
+	if decoder == nil {
+		return
+	}
+
 	decoder(u.scratch, scanner, value)
 }
 
@@ -49,25 +51,25 @@ func (u *unmarshaller) FindDecoder(theType reflect.Type) (decoder Decoder) {
 	if decoder != nil {
 		return decoder
 	}
-	
+
 	switch theType.Kind() {
 	case reflect.Array, reflect.Interface, reflect.Map, reflect.Slice, reflect.Struct, reflect.Ptr:
 		decoder = u.recurseSafeFindAndCacheDecoder(theType)
-		
+
 	case reflect.Bool, reflect.String,
-		 reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		 reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		 /*reflect.Complex64, reflect.Complex128,*/
-		 reflect.Float32, reflect.Float64:
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		/*reflect.Complex64, reflect.Complex128,*/
+		reflect.Float32, reflect.Float64:
 		// simple types don't need locking
 		decoder = u.decoding(u, theType)
-		
+
 	default:
 		panic(ErrorPrint("Decoding", "Unsupported type: ", theType))
 	}
-	
+
 	u.CacheDecoder(theType, decoder)
-	
+
 	return decoder
 }
 
@@ -82,13 +84,13 @@ func (u *unmarshaller) recurseSafeFindAndCacheDecoder(theType reflect.Type) (dec
 		wg.Wait()
 		decoder(scratch, scanner, value)
 	}
-	
+
 	// safely add the indirect decoder
 	u.CacheDecoder(theType, indirect)
-	
+
 	// find the decoder
 	decoder = u.recurseUnsafeFindDecoder(theType)
-	
+
 	// unblock the indirect encoder
 	wg.Done()
 	return
@@ -98,36 +100,38 @@ func (u *unmarshaller) checkDecodable(theType reflect.Type) Decoder {
 	if theType.ConvertibleTo(decodableType1) {
 		return reflect.New(theType).Elem().Interface().(Decodable1).Decoding(u, theType)
 	}
-	
+
 	if theType.ConvertibleTo(decodableType2) {
 		return Decodable2Decoding(u, theType)
 	}
-	
+
 	return nil
 }
 
 func (u *unmarshaller) recurseUnsafeFindDecoder(theType reflect.Type) Decoder {
 	decoder := u.checkDecodable(theType)
-	if decoder != nil { return decoder }
-	
+	if decoder != nil {
+		return decoder
+	}
+
 	decoder = u.decoding(u, theType)
-	
+
 	if decoder == nil {
 		decoder = func([64]byte, Scanner, reflect.Value) {
 			panic(ErrorPrint("Decoding", "Unsupported type: ", theType))
 		}
 	}
-	
+
 	if theType.Kind() == reflect.Ptr {
 		return decoder
 	}
-	
+
 	indirect := u.checkDecodable(reflect.PtrTo(theType))
-	
+
 	if indirect != nil {
 		decoder = TryIndirectDecoding(decoder, indirect)
 	}
-	
+
 	return decoder
 }
 

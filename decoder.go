@@ -11,7 +11,7 @@ func ErrorDecoding(err *Error) Decoder {
 	}
 }
 
-func ErrorScanning(got ScannerCode, expected...ScannerCode) *Error {
+func ErrorScanning(got ScannerCode, expected ...ScannerCode) *Error {
 	codestrs := make([]string, len(expected))
 	for i, code := range expected {
 		codestrs[i] = code.String()
@@ -19,13 +19,13 @@ func ErrorScanning(got ScannerCode, expected...ScannerCode) *Error {
 	return ErrorPrintf("Decoding", "Expected one of %s, got %s", strings.Join(codestrs, ", "), got.String())
 }
 
-func PeekCheck(scanner Scanner, expected...ScannerCode) bool {
+func PeekCheck(scanner Scanner, expected ...ScannerCode) bool {
 	got := scanner.Peek()
-	
+
 	if got.Matches(expected...) {
 		return true
 	}
-	
+
 	scanner.Error(ErrorScanning(got, expected...))
 	return false
 }
@@ -45,9 +45,9 @@ func Decodable2Decoding(unmarshaller Unmarshaller, theType reflect.Type) Decoder
 		if theType.Kind() == reflect.Ptr && value.IsNil() {
 			value.Set(reflect.New(theType.Elem()))
 		}
-		
+
 		fields := value.Interface().(Decodable2).DecodableFields()
-		
+
 		if scanner.Peek() == ScannedLiteralBegin {
 			null := scanner.NextValue()
 			if null.IsValid() && null.IsNil() {
@@ -55,31 +55,35 @@ func Decodable2Decoding(unmarshaller Unmarshaller, theType reflect.Type) Decoder
 				return
 			}
 		}
-		
-		if !PeekCheck(scanner, ScannedStructBegin, ScannedMapBegin) { return }
-		
+
+		if !PeekCheck(scanner, ScannedStructBegin, ScannedMapBegin) {
+			return
+		}
+
 		for {
 			// get the next code, check for the end
 			code := scanner.Continue()
-			if code.Matches(ScannedStructEnd, ScannedMapEnd) { break }
-			
+			if code.Matches(ScannedStructEnd, ScannedMapEnd) {
+				break
+			}
+
 			// check for key begin
 			if code != ScannedKeyBegin {
 				// this will generate an appropriate error message
 				PeekCheck(scanner, ScannedKeyBegin, ScannedStructEnd, ScannedMapEnd)
 				return
 			}
-			
+
 			// get the key
 			key := scanner.NextValue()
 			if key.Kind() != reflect.String {
 				scanner.Error(ErrorPrint("Decoding", "Invalid key type %s", key.Type().String()))
 			}
 			keystr := key.String()
-			
+
 			// check by name
 			field := fields[keystr]
-			
+
 			// check by case-folded name (disableable?)
 			if !field.IsValid() {
 				for name, altfield := range fields {
@@ -89,7 +93,7 @@ func Decodable2Decoding(unmarshaller Unmarshaller, theType reflect.Type) Decoder
 					}
 				}
 			}
-			
+
 			scanner.Continue()
 			if !field.IsValid() {
 				scanner.NextValue()

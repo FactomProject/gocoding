@@ -40,21 +40,21 @@ type Encodable2 interface {
 type Renderer interface {
 	Errorable
 	io.Writer
-	
-	Print(args...interface{}) int
-	Printf(format string, args...interface{}) int
+
+	Print(args ...interface{}) int
+	Printf(format string, args ...interface{}) int
 	WriteNil() int
 	PrintString(string) int
-	
+
 	StartStruct() int
 	StopStruct() int
-	
+
 	StartMap() int
 	StopMap() int
-	
+
 	StartArray() int
 	StopArray() int
-	
+
 	StartElement(id string) int
 	StopElement(id string) int
 }
@@ -80,21 +80,21 @@ type Decodable2 interface {
 
 type Scanner interface {
 	Errorable
-	
+
 	// get the code on the top of the stack
 	Peek() ScannerCode
-	
+
 	// scan the next rune, returning the appropriate code
 	//   this will step through the scanner's state
 	NextCode() ScannerCode
-	
+
 	// continue scanning until NextValue() doesn't return Scanning
 	Continue() ScannerCode
-	
+
 	// scan the next value
 	//   this will scan the next complete value
 	NextValue() reflect.Value
-	
+
 	// scan the next value as a string
 	//   this will scan the next complete value, returning the data unparsed
 	NextString() string

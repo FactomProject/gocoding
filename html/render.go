@@ -26,20 +26,20 @@ type htmlRenderer struct {
 
 func (r *htmlRenderer) Write(data []byte) (int, error) {
 	n, err := r.Writer.Write(data)
-	
+
 	if err != nil {
 		r.Error(&gocoding.Error{"Writer", err})
 	}
-	
+
 	return n, nil
 }
 
-func (r *htmlRenderer) Print(args...interface{}) int {
+func (r *htmlRenderer) Print(args ...interface{}) int {
 	n, _ := fmt.Fprint(r, args...)
 	return n
 }
 
-func (r *htmlRenderer) Printf(format string, args...interface{}) int {
+func (r *htmlRenderer) Printf(format string, args ...interface{}) int {
 	n, _ := fmt.Fprintf(r, format, args...)
 	return n
 }
